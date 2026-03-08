@@ -29,7 +29,6 @@ Al encapsular los conjuntos de datos en objetos bien definidos, el código de lo
 
 
 ```typescript
-import { Course } from '../domain/Course';
 import { CreateCourseForm } from './CreateCourseForm';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -38,26 +37,31 @@ import { faker } from '@faker-js/faker';
 // https://www.npmjs.com/package/fishery
 import { Factory } from 'fishery';
 
-// Definimos una fábrica para crear objetos Course
-const courseFactory = Factory.define<Course>(() => ({
+type CreateCourseInput = {
+  title: string;
+  duration: number;
+};
+
+// Definimos una fábrica para crear el input del formulario
+const createCourseInputFactory = Factory.define<CreateCourseInput>(() => ({
   title: faker.lorem.words(3), // Título aleatorio
-  duration: faker.datatype.number({ min: 30, max: 180 }), // Duración aleatoria entre 30 y 180
+  duration: faker.number.int({ min: 30, max: 180 }), // Duración aleatoria entre 30 y 180
 }));
 
-const CourseMother = {
-  createCourse: (overrides?: Partial<Course>) => courseFactory.build(overrides), // Crea un curso con datos aleatorios
-  createCourses: (count: number, overrides?: Partial<Course>) => courseFactory.buildList(count, overrides), // Crea una lista de cursos
+const CreateCourseInputMother = {
+  create: (overrides?: Partial<CreateCourseInput>) => createCourseInputFactory.build(overrides),
+  createMany: (count: number, overrides?: Partial<CreateCourseInput>) => createCourseInputFactory.buildList(count, overrides),
 };
 
 // Ejemplo de uso en un test
 test('envía datos válidos', async () => {
   const user = userEvent.setup();
   const onCreate = jest.fn().mockResolvedValue(undefined);
-  const course = CourseMother.createCourse(); // Creamos un curso con datos aleatorios
+  const courseInput = CreateCourseInputMother.create();
   render(<CreateCourseForm onCreate={onCreate} />);
-  await user.type(screen.getByLabelText(/title/i), course.title);
-  await user.type(screen.getByLabelText(/duration/i), course.duration.toString());
+  await user.type(screen.getByLabelText(/title/i), courseInput.title);
+  await user.type(screen.getByLabelText(/duration/i), courseInput.duration.toString());
   await user.click(screen.getByRole('button', { name: /create/i }));
-  expect(onCreate).toHaveBeenCalledWith({ title: course.title, duration: course.duration });
+  expect(onCreate).toHaveBeenCalledWith(courseInput);
 });
 ```

@@ -16,34 +16,34 @@ Infra (DTO externo) → [mapper] → Dominio (Entidad)
 
 ### Escritura
 
-- `create`: `Promise<Usuario>` o `Promise<UsuarioId>`
-- `update`: `Promise<Usuario>` o `Promise<void>`
+- `create`: `Promise<User>` o `Promise<UserId>`
+- `update`: `Promise<User>` o `Promise<void>`
 - `delete`: `Promise<void>`
 
 Razón: afectan invariantes del dominio; devolver la entidad/ID asegura consistencia y claridad del flujo. Nunca devuelvas un DTO externo.
 
 ### Lectura
 
-- `findById`: `Promise<Usuario | null>` (entidad de dominio)
-- `search/getAll`: `Promise<Usuario[]>` (entidad de dominio)
+- `findById`: `Promise<User | null>` (entidad de dominio)
+- `search/findAll`: `Promise<User[]>` (entidad de dominio)
 
 Razón: mantener consistencia usando siempre entidades de dominio simplifica el modelo mental y evita duplicación de estructuras.
 
 ## Dónde NO usar DTOs
 
-- Los DTOs de infraestructura (HTTP/SDK/storage) se definen y usan solo en `infraestructura/api/dto` y vecinos; no aparecen en `aplicacion` ni `dominio`.
+- Los DTOs de infraestructura (HTTP/SDK/storage) se definen y usan solo en `infrastructure/api/dto` y vecinos; no aparecen en `application` ni `domain`.
 
 ## Ejemplo de puerto
 
 ```ts
-// dominio/repositorios/RepositorioDeUsuarios.ts
-import { Usuario } from '../../dominio/Usuario';
+// domain/repositories/UserRepository.ts
+import { User } from '../../domain/User';
 
-export interface RepositorioDeUsuarios {
-  create(nombre: string, email: string): Promise<Usuario>;      // o Promise<UsuarioId>
-  findById(id: string): Promise<Usuario | null>;
-  getAll(): Promise<Usuario[]>;
-  update(user: Usuario): Promise<Usuario>;                      // o Promise<void>
+export interface UserRepository {
+  create(name: string, email: string): Promise<User>;      // o Promise<UserId>
+  findById(id: string): Promise<User | null>;
+  findAll(): Promise<User[]>;
+  update(user: User): Promise<User>;                       // o Promise<void>
 }
 ```
 
@@ -52,15 +52,16 @@ export interface RepositorioDeUsuarios {
 El adaptador importa entidades de dominio, nunca al revés. Mapea DTO externo → entidad.
 
 ```ts
-// infraestructura/repositorios/RepositorioDeUsuariosFetch.ts
-import { RepositorioDeUsuarios } from '../../dominio/repositorios/RepositorioDeUsuarios';
-import { Usuario } from '../../dominio/Usuario';
-import { getUsuarios } from '../api/getUsuarios';
+// infrastructure/repositories/UserRepositoryFetch.ts
+import { UserRepository } from '../../domain/repositories/UserRepository';
+import { User } from '../../domain/User';
+import { Email } from '../../domain/Email';
+import { getUsers } from '../api/getUsers';
 
-export class RepositorioDeUsuariosFetch implements RepositorioDeUsuarios {
-  async getAll(): Promise<Usuario[]> {
-    const dtos = await getUsuarios();
-    return dtos.map(dto => new Usuario(dto.id, dto.nombre, dto.email));
+export class UserRepositoryFetch implements UserRepository {
+  async findAll(): Promise<User[]> {
+    const dtos = await getUsers();
+    return dtos.map(dto => new User(dto.id, dto.name, new Email(dto.email)));
   }
 
   // ... resto de métodos

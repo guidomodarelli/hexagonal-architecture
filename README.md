@@ -296,7 +296,7 @@ src/
 
 #### Infraestructura con múltiples implementaciones
 
-Cada módulo puede requerir varias implementaciones concretas para un mismo puerto (HTTP, persistence, message brokers, email, etc.). Organiza esas implementaciones dentro de `infrastructure/<tipo>` creando una carpeta por tecnología (`Axios/`, `Fetch/`, `PostgreSQL/`, `Kafka/`, …). Cada carpeta encapsula configuraciones, clientes e implementaciones de repositorios, mientras que los DTOs externos y su `mapper` permanecen en `infrastructure/api/dto`. Consulta `docs/frontend-hexagonal/Organizacion-Infraestructura-Implementaciones.md` para ver estructuras sugeridas y ejemplos de Axios vs Fetch, PostgreSQL vs MySQL, RabbitMQ vs Kafka, y adaptadores de email.
+Cada módulo puede requerir varias implementaciones concretas para un mismo puerto (HTTP, persistence, message brokers, email, etc.). Organiza esas implementaciones dentro de `infrastructure/<category>` creando una carpeta por tecnología (`Axios/`, `Fetch/`, `PostgreSQL/`, `Kafka/`, ...). Cada carpeta encapsula configuraciones, clientes e implementaciones de repositorios, mientras que los DTOs externos y su `mapper` permanecen en `infrastructure/api/dto`. Consulta `docs/frontend-hexagonal/Organizacion-Infraestructura-Implementaciones.md` para ver la estructura sugerida y ejemplos representativos; el mismo criterio aplica para `Fetch`, `MySQL`, `RabbitMQ` y adaptadores de email.
 ```
 
 ### 📂 Resumen rápido (qué hace cada carpeta)
@@ -386,10 +386,6 @@ Vamos a crear un caso de uso desde cero: la creación de un curso. Contamos con 
     }
 
     export type CreateCourseResponse = void;
-
-    export function CreateCourse(request: CreateCourseRequest): Promise<CreateCourseResponse> {
-      // Implementación del caso de uso
-    }
     ```
 
     * Se usa un `CreateCourseRequest` separado de la entidad `Course` para asegurar que el cliente solo proporcione los campos necesarios para la creación (e.g., excluyendo el `id`, que es generado por el sistema).
@@ -485,14 +481,14 @@ Por eso, el repositorio en infraestructura se encarga de hacer la **traducción*
 Para profundizar en dudas comunes al aplicar esta arquitectura en frontend, hay guías dedicadas:
 
 - Dónde van los DTOs, puertos y adaptadores, con convenciones y anti‑patrones: `docs/frontend-hexagonal/DTOs-Ports-Adapters.md`
-- Reglas de dependencias e importaciones permitidas + ejemplo ESLint: `docs/frontend-hexagonal/Reglas-de-Dependencias.md`
+- Reglas de dependencias e importaciones permitidas + ejemplo ESLint: `docs/Reglas-de-Dependencias.md`
 - Ejemplo completo CreateUser (árbol de carpetas y código): `docs/frontend-hexagonal/examples/CreateUser.md`
  - DTOs de aplicación vs infraestructura (cuándo/desde dónde/por qué): `docs/frontend-hexagonal/DTOs-Aplicacion-vs-Infraestructura.md`
  - Ejemplo de lectura (GetUsers) con filtros/paginado: `docs/frontend-hexagonal/examples/GetUsers.md`
- - Repositorios: contratos de retorno (entidades vs read models) y CQRS: `docs/frontend-hexagonal/Repositorios-Contratos-y-CQRS.md`
+ - Repositorios: contratos de retorno (entidades vs read models) y CQRS: `docs/Repositorios-Contratos-y-Retornos.md`
  - Manejo de errores (dominio vs infraestructura) + ejemplo OpenSearch: `docs/frontend-hexagonal/Errores-y-Excepciones.md`
 
 Resumen de decisiones clave:
-- DTOs externos viven en `infraestructura/api/dto`; la aplicación define sus propios inputs (comandos) y no importa DTOs de infra.
-- Puertos (interfaces) en `domain/repositories`; adaptadores (repositorios concretos) en `infraestructura/`.
+- DTOs externos viven en `infrastructure/api/dto`; la aplicación define sus propios inputs (comandos) y no importa DTOs de la capa `infrastructure`.
+- Puertos de repositorio en `domain/repositories`; servicios abstractos como clients o brokers en `domain/services`; adaptadores concretos en `infrastructure/`.
 - Infraestructura puede importar dominio y aplicación; dominio y aplicación no importan infraestructura.

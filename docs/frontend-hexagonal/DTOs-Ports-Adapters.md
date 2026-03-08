@@ -29,7 +29,7 @@ Más detalle en: `docs/Reglas-de-Dependencias.md`.
 ## Ubicación por capas (sugerida)
 
 ```
-/modules/<name>
+src/modules/<feature>/
 ├── domain/
 │   ├── entities/
 │   ├── value-objects/
@@ -68,7 +68,7 @@ Ejemplo: backend devuelve snake_case, campos extra u opcionales. El adaptador ma
 
 ## ¿Puertos en `domain` o `application`?
 
-En `domain`. Los puertos (interfaces) son parte del lenguaje del `domain` y expresan qué necesita la lógica de negocio para cumplir su trabajo. La implementación concreta se resuelve fuera (`infrastructure`/ composición).
+En `domain`. Los puertos (interfaces) son parte del lenguaje del `domain` y expresan qué necesita la lógica de negocio para cumplir su trabajo. Para puertos orientados al negocio usá `domain/repositories`; para capacidades externas genéricas (HTTP client, DB client, message broker) usá `domain/services`. La implementación concreta se resuelve fuera (`infrastructure`/ composición).
 
 ```ts
 // domain/repositories/UserRepository.ts
@@ -135,4 +135,4 @@ infrastructure/repositories/...    # implementa el puerto usando lo anterior
 - Ejemplo completo CreateUser: `docs/frontend-hexagonal/examples/CreateUser.md`
 - DTOs de `application` vs `infrastructure` (cuándo/desde dónde/por qué): `docs/frontend-hexagonal/DTOs-Aplicacion-vs-Infraestructura.md`
 - Ejemplo de lectura (GetUsers): `docs/frontend-hexagonal/examples/GetUsers.md`
-- Repositorios: contratos de retorno: `docs/frontend-hexagonal/Repositorios-Contratos-y-Retornos.md`
+- Repositorios: contratos de retorno: `docs/Repositorios-Contratos-y-Retornos.md`

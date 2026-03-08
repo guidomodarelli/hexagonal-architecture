@@ -122,7 +122,7 @@ Contexto: consultamos un índice en OpenSearch vía HTTP. A veces el backend res
 ### Tipos y puertos
 
 ```ts
-// application/ports/search-repository.ts
+// src/modules/search/domain/repositories/SearchRepository.ts
 export type SearchQuery = unknown;
 export type SearchResult = { id: string; source: unknown };
 
@@ -131,7 +131,7 @@ export interface SearchRepository {
 }
 
 // Errores técnicos del puerto
-export class SearchRepositoryError extends Error { readonly scope = 'infra'; }
+export class SearchRepositoryError extends Error { readonly scope = 'infrastructure'; }
 export class SearchRepositoryPermissionError extends SearchRepositoryError {
   constructor(public readonly index: string) {
     super(`Forbidden on index ${index}`);
@@ -170,7 +170,7 @@ import {
   SearchRepositoryError,
   SearchRepositoryPermissionError,
   SearchResult,
-} from '../ports/search-repository';
+} from '../../domain/repositories/SearchRepository';
 import { AuthorizationPolicy, User } from '../policies/authorization-policy';
 import { UserNotAuthorizedToSearchError } from '../../domain/errors';
 
@@ -198,17 +198,17 @@ export class SearchInIndexUseCase {
 }
 ```
 
-### Adaptador de OpenSearch (infra)
+### Adaptador de OpenSearch (`infrastructure`)
 
 ```ts
-// infra/opensearch/opensearch-search-repository.ts
+// src/modules/search/infrastructure/opensearch/OpenSearchSearchRepository.ts
 import {
   SearchRepository,
   SearchRepositoryPermissionError,
   SearchRepositoryUnavailableError,
   SearchRepositoryError,
   SearchResult,
-} from '../../application/ports/search-repository';
+} from '../../domain/repositories/SearchRepository';
 
 type Http = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -259,7 +259,7 @@ import { SearchInIndexUseCase } from '../../application/use-cases/search-in-inde
 import {
   SearchRepositoryPermissionError,
   SearchRepositoryUnavailableError,
-} from '../../application/ports/search-repository';
+} from '../../domain/repositories/SearchRepository';
 import { UserNotAuthorizedToSearchError } from '../../domain/errors';
 
 export class SearchController {
@@ -298,7 +298,7 @@ UI (React)
 import { useState } from 'react';
 import { SearchInIndexUseCase } from '../../application/use-cases/search-in-index';
 import { UserNotAuthorizedToSearchError } from '../../domain/errors';
-import { SearchRepositoryError, SearchRepositoryPermissionError } from '../../application/ports/search-repository';
+import { SearchRepositoryError, SearchRepositoryPermissionError } from '../../domain/repositories/SearchRepository';
 
 export function SearchPage({ useCase }: { useCase: SearchInIndexUseCase }) {
   const [message, setMessage] = useState<string | null>(null);

@@ -2,10 +2,10 @@
 
 Read use case with application-level filtering and external DTOs in infrastructure.
 
-## Folder Structure (`users` Module)
+## Folder Structure (`src/modules/users/`)
 
-```
-/modules/users/
+```text
+src/modules/users/
 ├── domain/
 │   ├── User.ts
 │   ├── Email.ts
@@ -71,17 +71,18 @@ export interface UserFilterInput {
 
 ```ts
 import { UserRepository } from '../../domain/repositories/UserRepository';
+import { User } from '../../domain/User';
 import { UserFilterInput } from '../queries/UserFilterInput';
 
-export class GetUsers {
-  constructor(private readonly repo: UserRepository) {}
-
-  async execute(input: UserFilterInput): Promise<{ items: any[]; total: number }> {
-  const page = input.page ?? 1;
-  const limit = input.limit ?? 20;
-  const query = input.query?.trim() || undefined;
-  return this.repo.search({ query, page, limit });
-  }
+export function GetUsers(
+  repo: UserRepository
+): (input: UserFilterInput) => Promise<{ items: User[]; total: number }> {
+  return async (input: UserFilterInput): Promise<{ items: User[]; total: number }> => {
+    const page = input.page ?? 1;
+    const limit = input.limit ?? 20;
+    const query = input.query?.trim() || undefined;
+    return repo.search({ query, page, limit });
+  };
 }
 ```
 
@@ -139,12 +140,13 @@ export async function getUsers(params: { query?: string; page?: number; limit?: 
 
 ```ts
 import { UserRepository } from '../../domain/repositories/UserRepository';
+import { User } from '../../domain/User';
 import { dtoToUser } from '../api/dto/mapper';
 import { getUsers } from '../api/getUsers';
 
 export class UserRepositoryFetch implements UserRepository {
-  async create(name: string, email: string) {
-    // Not implemented here (see CreateUser example)
+  async create(_name: string, _email: string): Promise<User> {
+    throw new Error('create() is covered in the CreateUser example');
   }
 
   async search(params: { query?: string; page?: number; limit?: number }) {
@@ -156,14 +158,16 @@ export class UserRepositoryFetch implements UserRepository {
 
 ### Usage from UI
 
+This example assumes the alias `@/` resolves to `src/`.
+
 ```ts
 import { GetUsers } from '@/modules/users/application/use-cases/GetUsers';
 import { UserRepositoryFetch } from '@/modules/users/infrastructure/repositories/UserRepositoryFetch';
 
 export async function searchUsersFromUI(query: string) {
   const repo = new UserRepositoryFetch();
-  const useCase = new GetUsers(repo);
-  return useCase.execute({ query, page: 1, limit: 20 });
+  const getUsers = GetUsers(repo);
+  return getUsers({ query, page: 1, limit: 20 });
 }
 ```
 

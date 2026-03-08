@@ -32,7 +32,7 @@ class Video extends AggregateRoot {
     super();
   }
 
-  static create(id: VideoId, title: VideoTitle, url: VideoUrl, courseId: CourseId): Video {
+  static create(id: VideoId, title: VideoTitle, url: VideoURL, courseId: CourseId): Video {
     const video = new Video(id, title, url, courseId);
 
     video.record(new VideoCreatedDomainEvent(

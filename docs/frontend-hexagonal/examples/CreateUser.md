@@ -2,10 +2,10 @@
 
 Realistic example with modules, ports, adapters (repository), DTOs and mappers.
 
-## Folder tree (module `users`)
+## Folder tree (`src/modules/users/`)
 
-```
-/modules/users/
+```text
+src/modules/users/
 ├── domain/
 │   ├── User.ts
 │   ├── Email.ts
@@ -47,11 +47,11 @@ export class User {
 
 ```ts
 export class Email {
-  constructor(private readonly value: string) {
-  if (!value.includes('@')) throw new Error('Invalid email');
+  constructor(private readonly rawValue: string) {
+  if (!rawValue.includes('@')) throw new Error('Invalid email');
   }
   get value(): string {
-  return this.value;
+  return this.rawValue;
   }
 }
 ```
@@ -83,13 +83,13 @@ import { User } from '../../domain/User';
 import { Email } from '../../domain/Email';
 import { CreateUserInput } from '../commands/CreateUserInput';
 
-export class CreateUser {
-  constructor(private readonly repo: UserRepository) {}
-
-  async execute(input: CreateUserInput): Promise<User> {
-  const emailVO = new Email(input.email);
-  return this.repo.create(input.name, emailVO.value);
-  }
+export function CreateUser(
+  repo: UserRepository
+): (input: CreateUserInput) => Promise<User> {
+  return async (input: CreateUserInput): Promise<User> => {
+    const emailVO = new Email(input.email);
+    return repo.create(input.name, emailVO.value);
+  };
 }
 ```
 
@@ -159,14 +159,16 @@ export class UserRepositoryFetch implements UserRepository {
 
 ### Usage from UI (example)
 
+This example assumes the alias `@/` resolves to `src/`.
+
 ```ts
 import { CreateUser } from '@/modules/users/application/use-cases/CreateUser';
 import { UserRepositoryFetch } from '@/modules/users/infrastructure/repositories/UserRepositoryFetch';
 
 export async function createUserFromUI(name: string, email: string) {
   const repo = new UserRepositoryFetch();
-  const useCase = new CreateUser(repo);
-  const user = await useCase.execute({ name, email });
+  const createUser = CreateUser(repo);
+  const user = await createUser({ name, email });
   return user;
 }
 ```

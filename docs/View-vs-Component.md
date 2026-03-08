@@ -26,11 +26,15 @@ Sus funciones principales son:
 
 Ejemplo mínimo (React) con dependencias mínimas
 
+Los imports con `@/` asumen un alias configurado hacia `src/`.
+Para mantener el foco, el ejemplo usa solo `title` y `duration`; si tu caso real incluye más campos (por ejemplo `description`), la separación entre `View` y `Component` no cambia.
+
 ## Componente de formulario (solo React)
 
 ```tsx
 import React, { useState } from 'react';
-import { isCourseTitleValid, isCourseDurationValid } from '../modules/courses/domain';
+import { isCourseTitleValid } from '@/modules/courses/domain/value-objects/CourseTitle';
+import { isCourseDurationValid } from '@/modules/courses/domain/value-objects/CourseDuration';
 
 type CreateInput = { title: string; duration: number };
 
@@ -90,13 +94,13 @@ export function CreateCourseForm({ onCreate }: Props) {
 ```tsx
 import React from 'react';
 import { CreateCourseForm } from './CreateCourseForm';
-import { createCourseFactory } from '../modules/courses/use-cases/createCourse';
-import { createHttpCourseRepository } from '../modules/courses/infra/httpCourseRepository';
+import { CreateCourse } from '@/modules/courses/application/use-cases/CreateCourse';
+import { CourseRepositoryFetch } from '@/modules/courses/infrastructure/repositories/CourseRepositoryFetch';
 
 // La View orquesta y resuelve dependencias mediante imports,
 // dejando el componente puro y fácil de testear.
-const repo = createHttpCourseRepository(); // implementa CourseRepository (fetch/axios...)
-const createCourse = createCourseFactory(repo); // devuelve (input) => Promise<void>
+const repo = new CourseRepositoryFetch();
+const createCourse = CreateCourse(repo);
 
 export function CreateCourseView() {
   return <CreateCourseForm onCreate={createCourse} />;

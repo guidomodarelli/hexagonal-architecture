@@ -5,35 +5,35 @@ Estas reglas concretan la dirección de dependencias y qué importaciones están
 ## Dirección de dependencias
 
 ```
-infraestructura  →  aplicacion  →  dominio
+infrastructure  →  application  →  domain
 ```
 
-- Dominio no importa nada de `aplicacion` ni `infraestructura`.
-- Aplicación importa `dominio`, pero no importa `infraestructura`.
-- Infraestructura puede importar `aplicacion` (para conectar adaptadores entrantes con casos de uso) y `dominio` (para construir entidades/Value Objects e implementar puertos).
+- `Domain` no importa nada de `application` ni `infrastructure`.
+- `Application` importa `domain`, pero no importa `infrastructure`.
+- `Infrastructure` puede importar `application` (para conectar adaptadores entrantes con casos de uso) y `domain` (para construir entidades/Value Objects e implementar puertos).
 
 ## Matriz de importaciones
 
 - Permitido:
-  - `aplicacion/*` → `dominio/*`
-  - `infraestructura/*` → `aplicacion/*`
-  - `infraestructura/*` → `dominio/*`
+  - `application/*` → `domain/*`
+  - `infrastructure/*` → `application/*`
+  - `infrastructure/*` → `domain/*`
 - Prohibido:
-  - `dominio/*` → `aplicacion/*` o `infraestructura/*`
-  - `aplicacion/*` → `infraestructura/*`
+  - `domain/*` → `application/*` o `infrastructure/*`
+  - `application/*` → `infrastructure/*`
 
 ## Estructura sugerida por módulo
 
 ```
-/modulos/<nombre>
-├── dominio/
-├── aplicacion/
-└── infraestructura/
+src/modules/<feature>/
+├── domain/
+├── application/
+└── infrastructure/
 ```
 
 ## Enforzar con ESLint (opcional)
 
-Ejemplo con `eslint-plugin-import` (`import/no-restricted-paths`) y alias TS `@modules/*`:
+Ejemplo con `eslint-plugin-import` (`import/no-restricted-paths`) usando paths dentro de `src/modules/*`:
 
 ```js
 // .eslintrc.cjs (fragmento ilustrativo)
@@ -43,11 +43,11 @@ module.exports = {
       'error',
       {
         zones: [
-          // dominio no puede importar app/infra
+          // domain cannot import application/infrastructure
           { target: './src/modules/**/domain', from: './src/modules/**/application' },
           { target: './src/modules/**/domain', from: './src/modules/**/infrastructure' },
 
-          // aplicacion no puede importar infra
+          // application cannot import infrastructure
           { target: './src/modules/**/application', from: './src/modules/**/infrastructure' },
         ],
       },
