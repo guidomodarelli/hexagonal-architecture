@@ -27,12 +27,13 @@ Extraer interacciones con la fuente de datos (*localStorage*, API) a una *interf
 Crear funciones puras en *application* que reciban la interfaz del repositorio vía inyección de dependencias. Mantén la lógica agnóstica de la infraestructura.
 
 ### 6️⃣ Mover Reglas de Negocio al Dominio
-Crear *value-objects* y validadores. **Principio clave:** el dominio lanza errores; los casos de uso los capturan y manejan.
+Crear *value-objects* y validadores. **Principio clave:** el dominio lanza errores de negocio; los casos de uso los coordinan y propagan. La traducción a HTTP/UI ocurre en el borde.
 
 ### 7️⃣ Modularizar `main.ts`
-Reducir a solo la **composición de dependencias** (*Composition Root*): 
+Reducir a solo la **composición de dependencias** (*Composition Root*):
 - Instanciar repositorios
 - Construir casos de uso
+- Delegar en *feature bootstraps* si la aplicación crece
 
 ### 8️⃣ Escribir *Tests* Unitarios
 Con la lógica aislada:

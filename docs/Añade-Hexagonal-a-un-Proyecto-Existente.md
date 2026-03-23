@@ -54,11 +54,11 @@ Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo in
 #### 6. Mover reglas de negocio al dominio
 
 - Crear **value-objects** y validadores (`CourseTitle`, `CourseDuration`, `CourseId`, `ensureCourseIsValid`).
-- Lanzar errores de dominio desde el dominio; los use-cases los capturan y transforman si es necesario.
+- Lanzar errores de dominio desde el dominio; los use-cases los coordinan y propagan. La traducción al contrato externo (HTTP/UI) ocurre en el entrypoint.
 
 #### 7. Modularizar main.ts (composición y bootstrap)
 
-- `main.ts` debe encargarse **solo de composición**: crear repositorios, construir use-cases y conectar handlers de UI.
+- `main.ts` debe encargarse **solo de composición**: crear repositorios, construir use-cases y conectar handlers de UI (o delegar en *feature bootstraps* si el proyecto lo prefiere).
 - Evitar lógica de negocio y acceso directo a localStorage en `main.ts`.
 
 #### 8. Escribir tests unitarios una vez aislada la lógica

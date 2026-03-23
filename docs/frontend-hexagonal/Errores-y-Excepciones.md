@@ -2,7 +2,8 @@
 
 Regla general: los errores se originan en la capa donde se detecta la condición anómala, pero se expresan con el vocabulario adecuado de cada capa.
 
-- Dominio / Casos de uso: errores de negocio (invariantes, autorizaciones por reglas de negocio, validaciones semánticas).
+- Dominio: errores de negocio (invariantes, autorizaciones por reglas de negocio, validaciones semánticas).
+- Application / Casos de uso: coordinan colaboradores, lanzan o propagan errores del dominio y dejan la traducción HTTP/UI para el borde.
 - Infraestructura / Adaptadores: errores técnicos (HTTP, red, timeouts, DB, serialización) envueltos en errores del puerto.
 - Entrypoints (API, CLI, UI): traducen errores internos al contrato externo (HTTP status, mensajes de UI, etc.).
 
@@ -12,6 +13,7 @@ Regla general: los errores se originan en la capa donde se detecta la condición
 - Definen y lanzan errores de negocio (p. ej. `UserNotAuthorizedToSearchError`).
 - No conocen detalles de transporte (HTTP) ni de proveedores (OpenSearch, SQL, etc.).
 - Propagan errores técnicos tal como llegan desde el puerto (sin convertirlos en negocio).
+- Solo transforman errores si el contrato **interno** del caso de uso realmente necesita otro resultado de aplicación; no traducen a HTTP ni a mensajes de UI.
 
 ### Infraestructura / Adaptadores
 - Capturan errores de proveedores (HTTP 403/500, SDKs, drivers) y los **traducen** a errores del puerto (p. ej. `SearchRepositoryPermissionError`, `SearchRepositoryUnavailableError`).
@@ -341,4 +343,5 @@ export function SearchPage({ useCase }: { useCase: SearchInIndexUseCase }) {
 
 ## Checklist rápido
 - ✅ El dominio lanza errores semánticos (no HTTP)
+- ✅ Los casos de uso coordinan y propagan; no traducen a HTTP/UI
 - ✅ Los adaptadores traducen errores externos a errores del puerto

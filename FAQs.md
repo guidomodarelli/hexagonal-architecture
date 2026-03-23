@@ -4,12 +4,14 @@
 
 **❓ Planteamiento del problema**
 
-Si cada capa debe comunicarse únicamente con la inmediatamente siguiente, surge la duda:
+Si solemos dibujar la arquitectura como una secuencia desde el exterior hacia el interior, surge la duda:
 ¿Por qué, en la implementación de un repositorio, instanciamos agregados del dominio?
-¿Está permitido omitir capas intermedias en estos casos?
+¿Está permitido depender directamente de una capa más interna en estos casos?
 
-La **regla de dependencia** se aplica principalmente al **flujo de peticiones desde el exterior hacia el interior**.
-Su objetivo es **favorecer la tolerancia al cambio** y **proteger el dominio** de cualquier contaminación proveniente de la capa de infraestructura.
+La **regla de dependencia** no dice que cada capa solo pueda conocer a la inmediatamente inferior.
+La regla correcta es que las dependencias **siempre apunten hacia adentro**.
+
+Su objetivo es **favorecer la tolerancia al cambio** y **proteger el dominio** de cualquier contaminación proveniente de las capas externas.
 
 Consideramos que **no es especialmente problemático** que las implementaciones de repositorios —incluyendo aquellas usadas en pruebas— **conozcan e instancien agregados del dominio**.
 
@@ -18,6 +20,8 @@ Esto se debe a que:
 1️⃣ Lo que realmente persistimos son **los agregados del dominio**.
 
 2️⃣ Por tanto, **instanciarlos resulta inevitable** en este contexto.
+
+En otras palabras: **sí está permitido saltar una capa intermedia** si la dependencia sigue apuntando hacia el núcleo y esa es la abstracción correcta.
 
 **🚨 Lo verdaderamente crítico**
 
@@ -122,7 +126,7 @@ En este ejemplo, `CreateCourseResponse` es `void` porque la operación no necesi
 
 ### **¿Por qué no usar directamente `Course` como request?**
 
-Porque `Course` es una **entidad completa** que incluye el `id`, generalmente asignado por el sistema (base de datos, UUID generator, etc.). 
+Porque `Course` es una **entidad completa** que incluye el `id`, generalmente asignado por el sistema (base de datos, UUID generator, etc.).
 
 Al definir `CreateCourseRequest` separado:
 * **Separamos responsabilidades:** el cliente proporciona solo los datos de creación; el sistema genera metadatos (`id`, timestamps).
@@ -164,7 +168,7 @@ export function CreateCourse(
       id: generateId(),
       ...request
     };
-    
+
     ensureCourseIsValid(course);
     await courseRepository.save(course);
   };

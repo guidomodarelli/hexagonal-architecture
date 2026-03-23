@@ -130,11 +130,21 @@ Cada módulo es **independiente**, lo que favorece la modularidad, la escalabili
 
 ## ⚙️ Regla de Dependencia
 
-La **regla de dependencia** establece que **cada capa solo debe conocer las clases de la capa inmediatamente inferior**.
+La **regla de dependencia** establece que **las dependencias del código siempre deben apuntar hacia el núcleo**.
 
-**Orden jerárquico (de exterior a interior):**
+No se trata de "pasar obligatoriamente por todas las capas", sino de **evitar dependencias hacia afuera**.
+Por eso, una capa externa puede depender directamente de una capa interna si esa es la abstracción correcta.
 
-> Infraestructura → Aplicación → Dominio
+**Dirección permitida (de exterior a interior):**
+
+> Presentation / Infrastructure → Application / Domain
+> Application → Domain
+
+Ejemplos habituales:
+
+* `presentation` invoca casos de uso en `application` y puede reutilizar tipos o validaciones puras de `domain` si aporta claridad.
+* `infrastructure` puede importar `domain` para implementar puertos y construir entidades, y también `application` para conectar adaptadores entrantes con casos de uso.
+* `domain` nunca importa `application`, `presentation` ni `infrastructure`.
 
 🔒 Este principio permite modificar las capas externas sin afectar las internas.
 Por ello, los elementos **más variables o dependientes de terceros** se ubican en la **capa de Infraestructura**.
@@ -144,7 +154,8 @@ Por ello, los elementos **más variables o dependientes de terceros** se ubican 
 ## 🔌 Puertos y Adaptadores
 
 * **Puertos (Ports):**
-  Son las **interfaces** definidas en la capa de dominio para desacoplar la lógica de negocio de la infraestructura.
+  Son las **abstracciones** que el núcleo usa para desacoplar la lógica de negocio de los detalles externos.
+  Los puertos orientados al negocio suelen vivir en `domain`; los contratos internos de los casos de uso viven en `application`.
   📍 *Ejemplo:* `UserRepository`
 
 * **Adaptadores (Adapters):**
@@ -228,32 +239,16 @@ El patrón divide la aplicación en las siguientes capas, con una dirección de 
 | **Domain**                     | Entidades, reglas de negocio, validaciones y contratos (*interfaces* de repositorio).                         |
 | **Infrastructure**             | Adaptadores para APIs, almacenamiento (REST, GraphQL, *localStorage*) e implementaciones de los repositorios. |
 
-> La dirección de dependencias es: **Presentation** $\rightarrow$ **Application** $\rightarrow$ **Domain**. La capa **Infrastructure** implementa adaptadores que dependen del Dominio (no al revés).
+> La dirección de dependencias apunta **hacia adentro**: `presentation` consume `application` y puede reutilizar piezas puras de `domain`; `infrastructure` implementa adaptadores que dependen de `application` y/o `domain`; el núcleo nunca depende de capas externas.
 
 ```
-+---------------------+
-|  View + Components  |
-|  (React, Vue, etc.) |
-+----------+----------+
-           |
-           v
-+----------+----------+
-|    Application      |
-| (Use Cases, Logic)  |
-+----------+----------+
-           |
-           v
-+----------+----------+
-|      Domain         |
-| (Entities, Rules)   |
-+----------+----------+
-           |
-           v
-+----------+----------+
-|   Infrastructure    |
-| (APIs, Storage, etc.)|
-+---------------------+
+Presentation / Views / Components ----> Application ----> Domain
+                                              ^
+                                              |
+Infrastructure / Adapters --------------------+
 ```
+
+Los adaptadores de infraestructura pueden apuntar a `application` cuando conectan un entrypoint con un caso de uso, o directamente a `domain` cuando implementan un puerto de salida.
 
 #### 📁 Estructura de Carpetas Sugerida
 
@@ -293,11 +288,11 @@ src/
           CourseList.tsx, CourseForm.tsx
         pages/
           CoursesPage.tsx (Páginas / Views)
+```
 
 #### Infraestructura con múltiples implementaciones
 
 Cada módulo puede requerir varias implementaciones concretas para un mismo puerto (HTTP, persistence, message brokers, email, etc.). Organiza esas implementaciones dentro de `infrastructure/<category>` creando una carpeta por tecnología (`Axios/`, `Fetch/`, `PostgreSQL/`, `Kafka/`, ...). Cada carpeta encapsula configuraciones, clientes e implementaciones de repositorios, mientras que los DTOs externos y su `mapper` permanecen en `infrastructure/api/dto`. Consulta `docs/frontend-hexagonal/Organizacion-Infraestructura-Implementaciones.md` para ver la estructura sugerida y ejemplos representativos; el mismo criterio aplica para `Fetch`, `MySQL`, `RabbitMQ` y adaptadores de email.
-```
 
 ### 📂 Resumen rápido (qué hace cada carpeta)
 
@@ -309,10 +304,10 @@ Cada módulo puede requerir varias implementaciones concretas para un mismo puer
 | **domain/repositories/**        | Contratos (interfaces) que definen cómo acceder a datos; puertos de la arquitectura.                                                                                           |
 | **domain/value-objects/**       | Validaciones y reglas encapsuladas en tipos semánticos (ej: `CourseId`, `CourseTitle`, `CourseDuration`).                                                                      |
 | **infrastructure/**             | Implementaciones concretas de repositorios y adaptadores de I/O (REST, GraphQL, localStorage, etc.); adaptadores de la arquitectura.                                           |
-| **presentation/pages/ (Views)** | Punto de entrada a nivel de ruta/pantalla, orquesta la UI, compone componentes, maneja navegación y conecta casos de uso, sin lógica de dominio.                               |
+| **presentation/pages/ (Views)** | Punto de entrada a nivel de ruta/pantalla, orquesta la UI, compone componentes y consume casos de uso o handlers ya compuestos, sin lógica de dominio.                          |
 | **presentation/components/**    | Piezas de UI reutilizables con estado/efectos de presentación y validaciones de UI. Pueden invocar casos de uso a través de *props* o *hooks*; no contienen lógica de dominio. |
 
-> **Regla clave:** La capa de presentación (pages/components) **usa** casos de uso; la aplicación **depende** de interfaces del dominio; la infraestructura **implementa** esas interfaces. El dominio nunca importa de infraestructura o presentación.
+> **Regla clave:** La capa de presentación **consume** casos de uso; la aplicación **depende** de interfaces del dominio; la infraestructura **implementa** esas interfaces o conecta adaptadores de entrada. El dominio nunca importa de infraestructura ni de presentación.
 
 ### View vs Component (en React)
 
@@ -330,7 +325,7 @@ View (Page) --> Component --> Use Case --> Repository <--- Impl Repository
 * **Presentation como orquestadora:** La capa de **Presentation** solo orquesta la interacción del usuario y muestra errores/validaciones provistas por Domain/Application, sin contener lógica de negocio.
 * **Casos de uso para operaciones complejas:** Evitar lógica de negocio compleja en componentes de UI; delegar operaciones complejas a casos de uso bien definidos.
 * **Hooks personalizados:** Usar hooks personalizados (en React) para encapsular lógica de presentación reutilizable (estado de formularios, manejo de errores de UI, efectos visuales), manteniendo los componentes limpios.
-* **Dirección de dependencias:** `presentation → application → domain`; `infrastructure` implementa adaptadores que dependen del dominio (no al revés). El dominio nunca importa de capas superiores.
+* **Dirección de dependencias:** `presentation` depende de `application` y puede reutilizar piezas puras de `domain`; `infrastructure` depende de `application` y/o `domain`; el núcleo nunca importa de capas externas.
 * **Testing por capas:** Escribir tests unitarios para casos de uso y lógica de dominio (usando mocks de repositorios), tests de integración para adaptadores (verificando traducción de DTOs) y tests E2E para la interacción UI completa.
 
 ##### 🎯 Sobre la Capa de Presentación
@@ -349,7 +344,7 @@ Podríamos considerarla infraestructura, ya que el framework es una dependencia 
 
 Por ello, tratamos **Presentation** como una capa independiente con responsabilidades claras:
 
-* **Pages (Views):** Punto de entrada de rutas, orquesta componentes, maneja navegación y conecta casos de uso. Sin lógica de dominio.
+* **Pages (Views):** Punto de entrada de rutas, orquesta componentes, maneja navegación y consume casos de uso ya compuestos desde `main.ts`, un *feature bootstrap* o un contenedor de dependencias. Sin lógica de dominio.
 * **Components:** Piezas de UI reutilizables con estado/efectos de presentación. Invocan casos de uso a través de *props* o *hooks*; no contienen lógica de dominio.
 * **Hooks personalizados:** Encapsulan lógica de presentación reutilizable (gestión de formularios, estados de carga, efectos visuales).
 
@@ -490,5 +485,5 @@ Para profundizar en dudas comunes al aplicar esta arquitectura en frontend, hay 
 
 Resumen de decisiones clave:
 - DTOs externos viven en `infrastructure/api/dto`; la aplicación define sus propios inputs (comandos) y no importa DTOs de la capa `infrastructure`.
-- Puertos de repositorio en `domain/repositories`; servicios abstractos como clients o brokers en `domain/services`; adaptadores concretos en `infrastructure/`.
+- Puertos orientados al negocio en `domain/repositories` o `domain/services`; contratos técnicos genéricos (`HttpClient`, `DatabaseClient`, brokers genéricos) viven en `application/ports` o quedan encapsulados dentro de `infrastructure/`.
 - Infraestructura puede importar dominio y aplicación; dominio y aplicación no importan infraestructura.

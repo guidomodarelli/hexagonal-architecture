@@ -157,7 +157,7 @@ export class UserRepositoryFetch implements UserRepository {
 }
 ```
 
-### Usage from UI (example)
+### Composition root / feature bootstrap
 
 This example assumes the alias `@/` resolves to `src/`.
 
@@ -165,11 +165,16 @@ This example assumes the alias `@/` resolves to `src/`.
 import { CreateUser } from '@/modules/users/application/use-cases/CreateUser';
 import { UserRepositoryFetch } from '@/modules/users/infrastructure/repositories/UserRepositoryFetch';
 
+export const createUser = CreateUser(new UserRepositoryFetch());
+```
+
+### Usage from UI
+
+```ts
+import { createUser } from '@/app/users/createUser';
+
 export async function createUserFromUI(name: string, email: string) {
-  const repo = new UserRepositoryFetch();
-  const createUser = CreateUser(repo);
-  const user = await createUser({ name, email });
-  return user;
+  return createUser({ name, email });
 }
 ```
 
@@ -192,5 +197,5 @@ export class UserRepositoryFetch implements UserRepository {
 
 - DTOs (external) in `infrastructure/api/dto`. Internal use case inputs in `application/commands`.
 - Port in `domain/repositories`. Adapter in `infrastructure/repositories`.
+- UI imports a composed use case or handler, not the infrastructure adapter directly.
 - infrastructure can import domain and application. Application and domain don't import infrastructure.
-

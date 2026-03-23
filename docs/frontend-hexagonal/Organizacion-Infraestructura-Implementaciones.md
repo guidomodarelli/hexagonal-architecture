@@ -1,6 +1,6 @@
 # Organización de la infraestructura por implementación concreta
 
-La capa de infraestructura aloja adaptadores para HTTP, persistencia, message brokers, email providers y cualquier otro mecanismo externo que implemente los puertos definidos en `domain/repositories`. Cada puerto puede tener múltiples implementaciones concretas (Axios, Fetch, PostgreSQL, MySQL, RabbitMQ, Kafka, Gmail, etc.), por lo que conviene aislar cada tecnología en su propia carpeta para facilitar el reemplazo sin tocar aplicación ni dominio.
+La capa de infraestructura aloja adaptadores para HTTP, persistencia, message brokers, email providers y cualquier otro mecanismo externo que implemente puertos definidos en `domain/repositories` y, cuando haga falta, contratos internos en `application/ports`. Cada puerto puede tener múltiples implementaciones concretas (Axios, Fetch, PostgreSQL, MySQL, RabbitMQ, Kafka, Gmail, etc.), por lo que conviene aislar cada tecnología en su propia carpeta para facilitar el reemplazo sin tocar aplicación ni dominio.
 
 ## Objetivos
 
@@ -49,85 +49,74 @@ src/modules/<feature>/infrastructure/
 
 ## Contratos y adaptadores
 
-Define cada puerto en la capa `domain` (`src/modules/<feature>/domain/services` o `src/modules/<feature>/domain/repositories`) y deja que la capa `infrastructure` solo implemente esas interfaces. Algunos ejemplos:
+No todo contrato técnico debe subir al dominio.
+
+- Los **puertos de negocio** viven en `domain/repositories` o `domain/services` cuando expresan lenguaje del negocio.
+- Los **contratos internos de aplicación** viven en `application/ports` cuando coordinan un caso de uso pero no forman parte del lenguaje ubicuo.
+- Los **clientes técnicos de bajo nivel** (`axios.create()`, pools de base de datos, SDK wrappers genéricos) pueden quedarse como detalle privado de `infrastructure`.
+
+Ejemplos:
 
 ```ts
-// src/modules/users/domain/services/HttpClient.ts
-export interface HttpClient {
-  get<T>(url: string): Promise<T>;
-  post<T>(url: string, body: unknown): Promise<T>;
+// src/modules/users/domain/repositories/UserRepository.ts
+export interface UserRepository {
+  findAll(): Promise<User[]>;
 }
 ```
 
 ```ts
-// src/modules/users/domain/services/DatabaseClient.ts
-export interface DatabaseClient {
-  query<T>(sql: string, params?: unknown[]): Promise<T[]>;
-  transaction<T>(callback: () => Promise<T>): Promise<T>;
+// src/modules/users/application/ports/UserEventsPublisher.ts
+export interface UserEventsPublisher {
+  userCreated(payload: UserCreatedEvent): Promise<void>;
 }
 ```
 
 ```ts
-// src/modules/users/domain/services/MessageBrokerClient.ts
-export interface MessageBrokerClient {
-  publish(topic: string, payload: unknown): Promise<void>;
-  subscribe(topic: string, handler: (payload: unknown) => Promise<void>): Promise<void>;
+// src/modules/users/infrastructure/http/Axios/client/createAxiosClient.ts
+import axios, { AxiosInstance } from 'axios';
+
+export function createAxiosClient(baseUrl: string): AxiosInstance {
+  return axios.create({ baseURL: baseUrl });
 }
 ```
 
 Cada implementación concreta se aloja en su carpeta correspondiente:
 
 ```ts
-// src/modules/users/infrastructure/http/Axios/client/AxiosHttpClient.ts
-import axios from 'axios';
-import { HttpClient } from '../../../../domain/services/HttpClient';
-
-export class AxiosHttpClient implements HttpClient {
-  constructor(private readonly baseUrl: string) {}
-
-  async get<T>(path: string): Promise<T> {
-    const { data } = await axios.get<T>(`${this.baseUrl}${path}`);
-    return data;
-  }
-
-  async post<T>(path: string, body: unknown): Promise<T> {
-    const { data } = await axios.post<T>(`${this.baseUrl}${path}`, body);
-    return data;
-  }
-}
-```
-
-```ts
 // src/modules/users/infrastructure/persistence/PostgreSQL/repositories/PostgreSQLUserRepository.ts
+import { Pool } from 'pg';
 import { UserRepository } from '../../../../domain/repositories/UserRepository';
-import { DatabaseClient } from '../../../../domain/services/DatabaseClient';
 import { UserDto } from '../../../api/dto/UserDto';
 import { dtoToUser } from '../../../api/dto/mapper';
 
 export class PostgreSQLUserRepository implements UserRepository {
-  constructor(private readonly db: DatabaseClient) {}
+  constructor(private readonly pool: Pool) {}
 
   async findAll() {
-    const rows = await this.db.query<UserDto>('SELECT * FROM users');
-    return rows.map(dtoToUser);
+    const result = await this.pool.query<UserDto>('SELECT id, name, email FROM users');
+    return result.rows.map(dtoToUser);
   }
 }
 ```
 
 ```ts
 // src/modules/users/infrastructure/message-broker/Kafka/publishers/KafkaUserEventsPublisher.ts
-import { MessageBrokerClient } from '../../../../domain/services/MessageBrokerClient';
+import type { Producer } from 'kafkajs';
+import { UserEventsPublisher } from '../../../../application/ports/UserEventsPublisher';
 
-export class KafkaUserEventsPublisher {
-  constructor(private readonly client: MessageBrokerClient) {}
+export class KafkaUserEventsPublisher implements UserEventsPublisher {
+  constructor(private readonly producer: Producer) {}
 
   async userCreated(payload: UserCreatedEvent) {
-    await this.client.publish('users.created', payload);
+    await this.producer.send({
+      topic: 'users.created',
+      messages: [{ value: JSON.stringify(payload) }],
+    });
   }
 }
 ```
 
-Cambiar de tecnología solo implica inyectar otra implementación (`FetchHttpClient`, `MySQLUserRepository`, `RabbitMQUserEventsPublisher`, etc.) manteniendo intacta la interfaz.
+Cambiar de tecnología solo implica inyectar otra implementación (`Fetch`, `MySQL`, `RabbitMQ`, etc.) manteniendo intacto el contrato expuesto al núcleo.
 
 ## DTOs siempre centralizados
 

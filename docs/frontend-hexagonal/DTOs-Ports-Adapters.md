@@ -6,8 +6,9 @@ Guía práctica para ubicar DTOs, definir puertos y escribir adaptadores en un f
 
 - Los DTOs **externos** representan contratos con el mundo exterior (HTTP/SDK/storage, filas de DB, etc.) y viven en la capa `infrastructure`.
 - La aplicación define sus propios contratos **internos** (inputs/comandos/resultados de casos de uso) y NO depende de `infrastructure`.
-- Los puertos (interfaces) viven en `domain`; las implementaciones concretas (adaptadores) viven en `infrastructure`.
+- Los puertos de **negocio** viven en `domain`; los contratos de aplicación viven en `application`; las implementaciones concretas (adaptadores) viven en `infrastructure`.
 - La capa `domain` es pura (entities/VO/rules) y no conoce ni `application` ni `infrastructure`.
+- No toda interfaz debe vivir en `domain`: un contrato técnico genérico no pertenece al lenguaje del negocio solo por ser una abstracción.
 
 La clave no es tanto **DTO de entrada vs DTO de salida**, sino **DTO interno vs DTO externo**:
 
@@ -17,10 +18,14 @@ La clave no es tanto **DTO de entrada vs DTO de salida**, sino **DTO interno vs 
 Dirección de dependencias permitida:
 
 ```
-infrastructure  →  application  →  domain
+presentation    →  application
+presentation    →  domain        (opcional, solo para tipos/validaciones puras)
+infrastructure  →  application
+infrastructure  →  domain
+application     →  domain
 ```
 
-Nunca: `application → infrastructure` ni `domain → (application|infrastructure)`.
+Nunca: `presentation → infrastructure`, `application → infrastructure` ni `domain → (presentation|application|infrastructure)`.
 
 Más detalle en: `docs/Reglas-de-Dependencias.md`.
 
@@ -30,13 +35,16 @@ Más detalle en: `docs/Reglas-de-Dependencias.md`.
 
 ```
 src/modules/<feature>/
+├── presentation/               # opcional en frontend
 ├── domain/
 │   ├── entities/
 │   ├── value-objects/
-│   └── repositories/          # interfaces (Repository, Services)
+│   └── repositories/           # puertos de negocio
 ├── application/
 │   ├── use-cases/
 │   ├── commands/              # inputs internos de casos de uso
+│   ├── results/               # outputs internos para lecturas/UI
+│   └── ports/                 # contratos de aplicación/orquestación
 └── infrastructure/
     ├── api/                   # funciones HTTP/SDK
     │   ├── dto/               # DTOs externos (contratos con el mundo de afuera)
@@ -49,11 +57,13 @@ src/modules/<feature>/
 ### Responsabilidades
 
 - `domain/repositories`: interfaces que expresan lo que la app necesita. Ej.: `UserRepository`.
+- `application/ports`: contratos internos de orquestación o integraciones que no forman parte del lenguaje del dominio. Ej.: `Clock`, `IdGenerator`, `EventPublisher`.
 - `infrastructure/repositories`: adaptadores que implementan puertos. Ej.: `UserRepositoryFetch`.
 - `infrastructure/api`: funciones que hablan con el exterior (HTTP/SDK). Ej.: `createUser()`.
 - `infrastructure/api/dto`: formas de datos **externas**. Ej.: `UserDto`, `CreateUserDto`.
 - `infrastructure/api/dto/mapper.ts`: transforma DTO ↔ entidades del `domain`.
 - `application/commands`: inputs internos para casos de uso (DTOs internos). Ej.: `CreateUserInput`.
+- `application/results`: outputs internos cuando una lectura necesita una proyección específica para la UI. Ej.: `UserListResult`.
 - `domain`: entidades/VO/reglas puras. Ej.: `User`, `Email`.
 
 ---
@@ -68,7 +78,13 @@ Ejemplo: backend devuelve snake_case, campos extra u opcionales. El adaptador ma
 
 ## ¿Puertos en `domain` o `application`?
 
-En `domain`. Los puertos (interfaces) son parte del lenguaje del `domain` y expresan qué necesita la lógica de negocio para cumplir su trabajo. Para puertos orientados al negocio usá `domain/repositories`; para capacidades externas genéricas (HTTP client, DB client, message broker) usá `domain/services`. La implementación concreta se resuelve fuera (`infrastructure`/ composición).
+Depende de **qué modela el contrato**:
+
+- `domain`: puertos orientados al negocio y al lenguaje ubicuo. Ej.: `UserRepository`, `AuthorizationPolicy`.
+- `application`: contratos internos de casos de uso y puertos de orquestación que no expresan reglas de dominio. Ej.: `Clock`, `IdGenerator`, `EventPublisher`.
+- `infrastructure`: detalles técnicos privados de los adaptadores. Si tenés un `HttpClient` o `DatabaseClient` genérico usado solo por adaptadores, no hace falta subirlo al núcleo.
+
+Regla práctica: **si la interfaz habla del negocio, va al dominio; si habla de la coordinación del caso de uso, va a aplicación; si habla de detalles técnicos reutilizados entre adaptadores, puede quedarse en infraestructura**.
 
 ```ts
 // domain/repositories/UserRepository.ts
@@ -126,6 +142,7 @@ infrastructure/repositories/...    # implementa el puerto usando lo anterior
 - Importar DTOs de `infrastructure` desde `application` o `domain`.
 - Reutilizar un `User` genérico en `shared` para todos los contextos (termina con muchos opcionales y invariantes débiles).
 - Hacer que `domain` conozca `fetch`, `axios`, `localStorage` o el formato JSON externo.
+- Poner interfaces técnicas genéricas en `domain` (`HttpClient`, `DatabaseClient`, `MessageBrokerClient`) cuando no representan una capacidad del negocio.
 
 ---
 

@@ -1,12 +1,13 @@
 # Repositorios: contratos y retornos
 
-**Objetivo**: decidir qué retorna un repositorio y cuándo usar entidades de dominio, sin introducir DTOs de infraestructura fuera de su capa.
+**Objetivo**: decidir qué retorna un puerto de escritura o lectura sin introducir DTOs de infraestructura fuera de su capa.
 
 ## Principios
 
 - El puerto de repositorio (interface) modela necesidades del caso de uso, no detalles de red/DB.
 - La implementación concreta (adaptador) mapea DTO externo ↔ modelo interno antes de cruzar el puerto.
-- Priorizar siempre entidades de dominio como retorno.
+- Para escrituras y flujos con invariantes, priorizar entidades de dominio o identificadores.
+- Para lecturas, devolver entidades o read models internos según lo que realmente necesite el caso de uso.
 
 ```
 Infra (DTO externo) → [mapper] → Dominio (Entidad)
@@ -24,10 +25,11 @@ Razón: afectan invariantes del dominio; devolver la entidad/ID asegura consiste
 
 ### Lectura
 
-- `findById`: `Promise<User | null>` (entidad de dominio)
-- `search/findAll`: `Promise<User[]>` (entidad de dominio)
+- `findById`: `Promise<User | null>` cuando el caso de uso necesita una entidad de dominio
+- `search/findAll`: `Promise<User[]>` o `Promise<UserListItem[]>`
+- `dashboard/stats`: `Promise<UserMetricsResult>`
 
-Razón: mantener consistencia usando siempre entidades de dominio simplifica el modelo mental y evita duplicación de estructuras.
+Razón: una lectura no siempre necesita comportamiento ni validaciones de una entidad completa. Si la operación solo proyecta datos para UI, reporting o búsqueda, un read model interno suele ser más claro y más estable que reutilizar una entidad por costumbre.
 
 ## Dónde NO usar DTOs
 
@@ -47,9 +49,33 @@ export interface UserRepository {
 }
 ```
 
+## Si la lectura necesita una proyección específica
+
+Cuando una lectura no necesita una entidad rica, podés separar un puerto de lectura y devolver un resultado de aplicación:
+
+```ts
+// application/results/UserListItem.ts
+export interface UserListItem {
+  id: string;
+  name: string;
+  email: string;
+}
+```
+
+```ts
+// application/ports/UserListReader.ts
+import { UserListItem } from '../results/UserListItem';
+
+export interface UserListReader {
+  list(): Promise<UserListItem[]>;
+}
+```
+
+La regla sigue siendo la misma: el adaptador puede mapear desde DTOs externos, pero el núcleo solo ve modelos propios de `domain` o `application`.
+
 ## Adaptadores (infraestructura)
 
-El adaptador importa entidades de dominio, nunca al revés. Mapea DTO externo → entidad.
+El adaptador importa modelos internos (`domain` o `application`), nunca al revés. Mapea DTO externo → entidad o DTO interno.
 
 ```ts
 // infrastructure/repositories/UserRepositoryFetch.ts
@@ -70,7 +96,8 @@ export class UserRepositoryFetch implements UserRepository {
 
 ## Decisión rápida
 
-- Retorna siempre entidades de dominio desde los puertos.
+- En comandos y escrituras, priorizá entidades o IDs del dominio.
+- En lecturas, usá entidades solo si el caso de uso necesita invariantes o comportamiento; si no, usá un read model interno.
 - Jamás retornes DTOs de infraestructura desde el puerto.
 
 ## Relación con los docs existentes

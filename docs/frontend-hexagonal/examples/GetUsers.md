@@ -156,7 +156,7 @@ export class UserRepositoryFetch implements UserRepository {
 }
 ```
 
-### Usage from UI
+### Composition root / feature bootstrap
 
 This example assumes the alias `@/` resolves to `src/`.
 
@@ -164,9 +164,15 @@ This example assumes the alias `@/` resolves to `src/`.
 import { GetUsers } from '@/modules/users/application/use-cases/GetUsers';
 import { UserRepositoryFetch } from '@/modules/users/infrastructure/repositories/UserRepositoryFetch';
 
+export const getUsers = GetUsers(new UserRepositoryFetch());
+```
+
+### Usage from UI
+
+```ts
+import { getUsers } from '@/app/users/getUsers';
+
 export async function searchUsersFromUI(query: string) {
-  const repo = new UserRepositoryFetch();
-  const getUsers = GetUsers(repo);
   return getUsers({ query, page: 1, limit: 20 });
 }
 ```
@@ -176,3 +182,4 @@ export async function searchUsersFromUI(query: string) {
 - `UserFilterInput` is an application DTO: internal contract between Presentation ↔ Application.
 - `GetUsersResponseDto` and `UserDto` are infrastructure DTOs: external HTTP contract.
 - The repository (adapter) translates external DTO → domain before returning the result to the use case.
+- UI imports a composed use case or handler, not the infrastructure adapter directly.
