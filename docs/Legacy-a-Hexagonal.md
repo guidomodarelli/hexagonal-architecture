@@ -29,11 +29,12 @@ Crear funciones puras en *application* que reciban la interfaz del repositorio v
 ### 6️⃣ Mover Reglas de Negocio al Dominio
 Crear *value-objects* y validadores. **Principio clave:** el dominio lanza errores de negocio; los casos de uso los coordinan y propagan. La traducción a HTTP/UI ocurre en el borde.
 
-### 7️⃣ Modularizar `main.ts`
-Reducir a solo la **composición de dependencias** (*Composition Root*):
+### 7️⃣ Crear `modules/<feature>/setup.[tj]s`
+Usarlo como **composition root** por feature:
 - Instanciar repositorios
 - Construir casos de uso
-- Delegar en *feature bootstraps* si la aplicación crece
+- Exportar handlers o `useCases` del módulo ya compuestos
+- Dejar que `main.ts`, `index.ts` o el entrypoint del framework solo consuman el `setup` del feature que necesitan
 
 ### 8️⃣ Escribir *Tests* Unitarios
 Con la lógica aislada:
@@ -51,6 +52,8 @@ Registrar decisiones de arquitectura (*Architecture Decision Records*) para mant
 
 ### 1️⃣2️⃣ Iterar
 Repetir el proceso para otras áreas del sistema hasta completar la migración.
+
+`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio. El composition root recomendado vive en `modules/<feature>/setup.[tj]s`; si además existe un `modules/setup.[tj]s` global, mantenelo como agregador liviano o factories lazy por feature.
 
 ---
 

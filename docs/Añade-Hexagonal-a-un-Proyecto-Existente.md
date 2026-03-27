@@ -56,10 +56,11 @@ Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo in
 - Crear **value-objects** y validadores (`CourseTitle`, `CourseDuration`, `CourseId`, `ensureCourseIsValid`).
 - Lanzar errores de dominio desde el dominio; los use-cases los coordinan y propagan. La traducción al contrato externo (HTTP/UI) ocurre en el entrypoint.
 
-#### 7. Modularizar main.ts (composición y bootstrap)
+#### 7. Crear `modules/<feature>/setup.[tj]s` como composition root
 
-- `main.ts` debe encargarse **solo de composición**: crear repositorios, construir use-cases y conectar handlers de UI (o delegar en *feature bootstraps* si el proyecto lo prefiere).
-- Evitar lógica de negocio y acceso directo a localStorage en `main.ts`.
+- Crear `<source-root>/modules/<feature>/setup.[tj]s` por feature para instanciar repositorios, construir use-cases y exportar handlers o `useCases` ya compuestos.
+- Si el framework exige un `main.ts`, `index.ts` o archivo de routing, ese entrypoint debe **consumir** solo el `setup` del feature que necesita. En apps con code splitting por ruta, cada ruta importa su propio `setup`; un `modules/setup.[tj]s` global es opcional como agregador liviano o factories lazy por feature.
+- Evitar lógica de negocio y acceso directo a localStorage en el entrypoint del framework.
 
 #### 8. Escribir tests unitarios una vez aislada la lógica
 
@@ -74,9 +75,12 @@ Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo in
 - [ ] Interfaz `CourseRepository` y adaptación a localStorage
 - [ ] Use-cases puros con inyección de dependencias
 - [ ] Domain: value-objects y validadores
-- [ ] `main.ts` reducido a composición/entorno
+- [ ] `<source-root>/modules/<feature>/setup.[tj]s` creado como composition root por feature
+- [ ] El entrypoint del framework reducido a entorno/arranque y consumo del `setup` del feature
 - [ ] Migración completa a TypeScript y suite de tests unitarios funcionando
 
 ---
+
+`<source-root>` es `src` si el proyecto ya usa `src/`; si no, es la raíz del repositorio.
 
 **Resultado esperado:** Código desacoplado, testable y preparado para futuros cambios de infraestructura o framework sin tocar la lógica de negocio.

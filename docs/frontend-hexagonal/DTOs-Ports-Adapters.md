@@ -33,8 +33,10 @@ Más detalle en: `docs/Reglas-de-Dependencias.md`.
 
 ## Ubicación por capas (sugerida)
 
+`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio.
+
 ```
-src/modules/<feature>/
+<source-root>/modules/<feature>/
 ├── presentation/               # opcional en frontend
 ├── domain/
 │   ├── entities/

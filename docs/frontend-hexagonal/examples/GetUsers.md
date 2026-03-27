@@ -2,10 +2,16 @@
 
 Read use case with application-level filtering and external DTOs in infrastructure.
 
-## Folder Structure (`src/modules/users/`)
+## Folder Structure (`<source-root>/modules/users/`)
+
+`<source-root>` is `src` when the project uses `src/`; otherwise it is the repository root.
 
 ```text
-src/modules/users/
+<source-root>/modules/users/
+├── setup.ts
+├── presentation/
+│   └── pages/
+│       └── UsersSearchView.tsx
 ├── domain/
 │   ├── User.ts
 │   ├── Email.ts
@@ -156,24 +162,31 @@ export class UserRepositoryFetch implements UserRepository {
 }
 ```
 
-### Composition root / feature bootstrap
+### Feature setup in `modules/users/setup.ts`
 
-This example assumes the alias `@/` resolves to `src/`.
+This example assumes the alias `@/` resolves to `<source-root>`.
 
 ```ts
 import { GetUsers } from '@/modules/users/application/use-cases/GetUsers';
 import { UserRepositoryFetch } from '@/modules/users/infrastructure/repositories/UserRepositoryFetch';
 
-export const getUsers = GetUsers(new UserRepositoryFetch());
+export function makeGetUsersHandler() {
+  return GetUsers(new UserRepositoryFetch());
+}
 ```
 
-### Usage from UI
+### Usage from outer route / framework entrypoint
 
-```ts
-import { getUsers } from '@/app/users/getUsers';
+This file lives outside `modules/*` (for example in `app/routes/` or `src/pages/`). It is framework-shell code, not `infrastructure`.
 
-export async function searchUsersFromUI(query: string) {
-  return getUsers({ query, page: 1, limit: 20 });
+```tsx
+import { makeGetUsersHandler } from '@/modules/users/setup';
+import { UsersSearchView } from '@/modules/users/presentation/pages/UsersSearchView';
+
+const getUsers = makeGetUsersHandler();
+
+export function UsersSearchRoute() {
+  return <UsersSearchView onSearch={getUsers} />;
 }
 ```
 
@@ -182,4 +195,4 @@ export async function searchUsersFromUI(query: string) {
 - `UserFilterInput` is an application DTO: internal contract between Presentation ↔ Application.
 - `GetUsersResponseDto` and `UserDto` are infrastructure DTOs: external HTTP contract.
 - The repository (adapter) translates external DTO → domain before returning the result to the use case.
-- UI imports a composed use case or handler, not the infrastructure adapter directly.
+- An outer route or framework entrypoint imports from `modules/users/setup`; UI receives the composed handler by injection.

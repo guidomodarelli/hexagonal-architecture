@@ -10,8 +10,10 @@ La capa de infraestructura aloja adaptadores para HTTP, persistencia, message br
 
 ## Estructura recomendada
 
+`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio.
+
 ```text
-src/modules/<feature>/infrastructure/
+<source-root>/modules/<feature>/infrastructure/
   http/
     Axios/
       client/
@@ -58,21 +60,21 @@ No todo contrato técnico debe subir al dominio.
 Ejemplos:
 
 ```ts
-// src/modules/users/domain/repositories/UserRepository.ts
+// <source-root>/modules/users/domain/repositories/UserRepository.ts
 export interface UserRepository {
   findAll(): Promise<User[]>;
 }
 ```
 
 ```ts
-// src/modules/users/application/ports/UserEventsPublisher.ts
+// <source-root>/modules/users/application/ports/UserEventsPublisher.ts
 export interface UserEventsPublisher {
   userCreated(payload: UserCreatedEvent): Promise<void>;
 }
 ```
 
 ```ts
-// src/modules/users/infrastructure/http/Axios/client/createAxiosClient.ts
+// <source-root>/modules/users/infrastructure/http/Axios/client/createAxiosClient.ts
 import axios, { AxiosInstance } from 'axios';
 
 export function createAxiosClient(baseUrl: string): AxiosInstance {
@@ -83,7 +85,7 @@ export function createAxiosClient(baseUrl: string): AxiosInstance {
 Cada implementación concreta se aloja en su carpeta correspondiente:
 
 ```ts
-// src/modules/users/infrastructure/persistence/PostgreSQL/repositories/PostgreSQLUserRepository.ts
+// <source-root>/modules/users/infrastructure/persistence/PostgreSQL/repositories/PostgreSQLUserRepository.ts
 import { Pool } from 'pg';
 import { UserRepository } from '../../../../domain/repositories/UserRepository';
 import { UserDto } from '../../../api/dto/UserDto';
@@ -100,7 +102,7 @@ export class PostgreSQLUserRepository implements UserRepository {
 ```
 
 ```ts
-// src/modules/users/infrastructure/message-broker/Kafka/publishers/KafkaUserEventsPublisher.ts
+// <source-root>/modules/users/infrastructure/message-broker/Kafka/publishers/KafkaUserEventsPublisher.ts
 import type { Producer } from 'kafkajs';
 import { UserEventsPublisher } from '../../../../application/ports/UserEventsPublisher';
 
@@ -127,7 +129,7 @@ La clave acá no es **entrada vs salida**, sino **adentro vs afuera** del hexág
 
 En esta organización:
 
-- Los **DTO externos** (requests/responses HTTP, filas de base de datos, payloads de message brokers, SDKs de terceros) viven en `src/modules/<feature>/infrastructure/api/dto` y se traducen mediante un `mapper.ts`. Estas definiciones representan la forma con la que los servicios externos hablan con nosotros y no deben duplicarse en cada carpeta tecnológica (`Axios`, `Fetch`, `PostgreSQL`, etc.).
-- Los **DTO internos** de la aplicación (por ejemplo, `CreateUserInput`, `GetUsersQuery`, `UserListResult`) viven en `src/modules/<feature>/application` (`commands`, `queries`, `results`) y son los que querés usar dentro del hexágono de punta a punta, independientemente de si afuera usás REST, gRPC, PostgreSQL, Mongo, etc.
+- Los **DTO externos** (requests/responses HTTP, filas de base de datos, payloads de message brokers, SDKs de terceros) viven en `<source-root>/modules/<feature>/infrastructure/api/dto` y se traducen mediante un `mapper.ts`. Estas definiciones representan la forma con la que los servicios externos hablan con nosotros y no deben duplicarse en cada carpeta tecnológica (`Axios`, `Fetch`, `PostgreSQL`, etc.).
+- Los **DTO internos** de la aplicación (por ejemplo, `CreateUserInput`, `GetUsersQuery`, `UserListResult`) viven en `<source-root>/modules/<feature>/application` (`commands`, `queries`, `results`) y son los que querés usar dentro del hexágono de punta a punta, independientemente de si afuera usás REST, gRPC, PostgreSQL, Mongo, etc.
 
 Los repositorios y adaptadores de la capa `infrastructure` toman los DTO externos desde `infrastructure/api/dto`, los convierten a entidades de `domain` o a DTO internos, y solo exponen al resto de la aplicación modelos propios del núcleo (`domain` + `application`), nunca formatos crudos de `infrastructure`.

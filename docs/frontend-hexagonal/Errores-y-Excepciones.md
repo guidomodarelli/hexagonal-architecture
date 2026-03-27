@@ -2,6 +2,8 @@
 
 Regla general: los errores se originan en la capa donde se detecta la condición anómala, pero se expresan con el vocabulario adecuado de cada capa.
 
+`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio.
+
 - Dominio: errores de negocio (invariantes, autorizaciones por reglas de negocio, validaciones semánticas).
 - Application / Casos de uso: coordinan colaboradores, lanzan o propagan errores del dominio y dejan la traducción HTTP/UI para el borde.
 - Infraestructura / Adaptadores: errores técnicos (HTTP, red, timeouts, DB, serialización) envueltos en errores del puerto.
@@ -124,7 +126,7 @@ Contexto: consultamos un índice en OpenSearch vía HTTP. A veces el backend res
 ### Tipos y puertos
 
 ```ts
-// src/modules/search/domain/repositories/SearchRepository.ts
+// <source-root>/modules/search/domain/repositories/SearchRepository.ts
 export type SearchQuery = unknown;
 export type SearchResult = { id: string; source: unknown };
 
@@ -203,7 +205,7 @@ export class SearchInIndexUseCase {
 ### Adaptador de OpenSearch (`infrastructure`)
 
 ```ts
-// src/modules/search/infrastructure/opensearch/OpenSearchSearchRepository.ts
+// <source-root>/modules/search/infrastructure/opensearch/OpenSearchSearchRepository.ts
 import {
   SearchRepository,
   SearchRepositoryPermissionError,

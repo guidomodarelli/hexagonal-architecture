@@ -2,10 +2,16 @@
 
 Realistic example with modules, ports, adapters (repository), DTOs and mappers.
 
-## Folder tree (`src/modules/users/`)
+## Folder tree (`<source-root>/modules/users/`)
+
+`<source-root>` is `src` when the project uses `src/`; otherwise it is the repository root.
 
 ```text
-src/modules/users/
+<source-root>/modules/users/
+├── setup.ts
+├── presentation/
+│   └── pages/
+│       └── CreateUserView.tsx
 ├── domain/
 │   ├── User.ts
 │   ├── Email.ts
@@ -157,24 +163,31 @@ export class UserRepositoryFetch implements UserRepository {
 }
 ```
 
-### Composition root / feature bootstrap
+### Feature setup in `modules/users/setup.ts`
 
-This example assumes the alias `@/` resolves to `src/`.
+This example assumes the alias `@/` resolves to `<source-root>`.
 
 ```ts
 import { CreateUser } from '@/modules/users/application/use-cases/CreateUser';
 import { UserRepositoryFetch } from '@/modules/users/infrastructure/repositories/UserRepositoryFetch';
 
-export const createUser = CreateUser(new UserRepositoryFetch());
+export function makeCreateUserHandler() {
+  return CreateUser(new UserRepositoryFetch());
+}
 ```
 
-### Usage from UI
+### Usage from outer route / framework entrypoint
 
-```ts
-import { createUser } from '@/app/users/createUser';
+This file lives outside `modules/*` (for example in `app/routes/` or `src/pages/`). It is framework-shell code, not `infrastructure`.
 
-export async function createUserFromUI(name: string, email: string) {
-  return createUser({ name, email });
+```tsx
+import { makeCreateUserHandler } from '@/modules/users/setup';
+import { CreateUserView } from '@/modules/users/presentation/pages/CreateUserView';
+
+const createUser = makeCreateUserHandler();
+
+export function CreateUserRoute() {
+  return <CreateUserView onCreate={createUser} />;
 }
 ```
 
@@ -197,5 +210,5 @@ export class UserRepositoryFetch implements UserRepository {
 
 - DTOs (external) in `infrastructure/api/dto`. Internal use case inputs in `application/commands`.
 - Port in `domain/repositories`. Adapter in `infrastructure/repositories`.
-- UI imports a composed use case or handler, not the infrastructure adapter directly.
+- An outer route or framework entrypoint imports from `modules/users/setup`; UI receives the composed handler by injection.
 - infrastructure can import domain and application. Application and domain don't import infrastructure.

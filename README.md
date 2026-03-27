@@ -248,17 +248,24 @@ Presentation / Views / Components ----> Application ----> Domain
 Infrastructure / Adapters --------------------+
 ```
 
-Los adaptadores de infraestructura pueden apuntar a `application` cuando conectan un entrypoint con un caso de uso, o directamente a `domain` cuando implementan un puerto de salida.
+Los adaptadores de infraestructura pueden apuntar a `application` cuando implementan un adaptador de entrada (por ejemplo HTTP, CLI o mensajería) y delegan en un caso de uso, o directamente a `domain` cuando implementan un puerto de salida.
 
 #### 📁 Estructura de Carpetas Sugerida
+
+Usaremos `<source-root>` para referirnos a la carpeta base del código fuente:
+
+- `src` si el proyecto ya usa `src/`
+- la raíz del repositorio si el proyecto no usa `src/`
+
+Con esa convención, `modules` vive en `<source-root>/modules/`. El wiring suele vivir en `modules/<feature>/setup.[tj]s`; si tu app no depende de code splitting por ruta, también podés exponer un `modules/setup.[tj]s` global como agregador liviano o re-export por feature.
 
 Un ejemplo de estructura de módulos (e.g., `courses`):
 
 ```text
-src/
-  App.tsx ó main.ts (Punto de entrada, composición de dependencias)
+<source-root>/
   modules/
     courses/
+      setup.ts
       application/
         use-cases/
           CreateCourse.ts
@@ -298,7 +305,8 @@ Cada módulo puede requerir varias implementaciones concretas para un mismo puer
 
 | Carpeta / Archivo               | Responsabilidad                                                                                                                                                                |
 | :------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **App.tsx ó main.ts**           | Punto de entrada de la aplicación; composición de dependencias (bootstrapping).                                                                                                |
+| **modules/<feature>/setup.[tj]s** | Composition root del feature: instancia dependencias del módulo y expone factories o handlers ya compuestos. Un `modules/setup.[tj]s` global es opcional como agregador liviano. |
+| **app/routes/** o **pages/** (fuera de `modules/`) | Shell externo del framework: conecta routing/bootstrap con `presentation` y el `setup` del feature, sin meter lógica de negocio.                             |
 | **application/use-cases/**      | Casos de uso puros; funciones que orquestan la lógica de negocio usando interfaces (repositorios).                                                                             |
 | **domain/entities/**            | Modelos inmutables y estructuras centrales del dominio (sin dependencias de infraestructura).                                                                                  |
 | **domain/repositories/**        | Contratos (interfaces) que definen cómo acceder a datos; puertos de la arquitectura.                                                                                           |
@@ -323,6 +331,7 @@ View (Page) --> Component --> Use Case --> Repository <--- Impl Repository
 * **Validaciones en Domain:** Mantener las validaciones en la capa de **Domain** (e.g., *value-objects*), permitiendo su reutilización tanto en casos de uso como en la UI para feedback inmediato.
 * **Traducción en Infrastructure:** Los adaptadores de **Infrastructure** deben traducir DTOs externos a entidades de dominio y viceversa, aislando el dominio de cambios en APIs externas.
 * **Presentation como orquestadora:** La capa de **Presentation** solo orquesta la interacción del usuario y muestra errores/validaciones provistas por Domain/Application, sin contener lógica de negocio.
+* **Composition root por feature dentro de `modules/`:** Ubicar el wiring en `modules/<feature>/setup.[tj]s`. Si además exponés `modules/setup.[tj]s`, mantenelo como re-export o factory liviana para no cargar adaptadores de features no usados en apps con code splitting por ruta.
 * **Casos de uso para operaciones complejas:** Evitar lógica de negocio compleja en componentes de UI; delegar operaciones complejas a casos de uso bien definidos.
 * **Hooks personalizados:** Usar hooks personalizados (en React) para encapsular lógica de presentación reutilizable (estado de formularios, manejo de errores de UI, efectos visuales), manteniendo los componentes limpios.
 * **Dirección de dependencias:** `presentation` depende de `application` y puede reutilizar piezas puras de `domain`; `infrastructure` depende de `application` y/o `domain`; el núcleo nunca importa de capas externas.
@@ -339,16 +348,18 @@ Si decidimos cambiar de framework en el futuro, la lógica de negocio permanecer
 Podríamos considerarla infraestructura, ya que el framework es una dependencia externa. Sin embargo, esta capa:
 
 * Sirve como **punto de entrada** en aplicaciones frontend (tradicionalmente asociado con la capa de aplicación).
-* Tiene **particularidades** que limitan la estructura (e.g., `main.ts` en `src/`, convenciones de routing).
+* Tiene **particularidades** que limitan la estructura (e.g., convenciones de routing, archivos de arranque del framework).
 * Orquesta la **experiencia del usuario**, conectando casos de uso con la interfaz visible.
 
 Por ello, tratamos **Presentation** como una capa independiente con responsabilidades claras:
 
-* **Pages (Views):** Punto de entrada de rutas, orquesta componentes, maneja navegación y consume casos de uso ya compuestos desde `main.ts`, un *feature bootstrap* o un contenedor de dependencias. Sin lógica de dominio.
+* **Pages (Views):** Punto de entrada de pantallas dentro del módulo, orquesta componentes, maneja navegación y recibe casos de uso o handlers ya compuestos desde un archivo de ruta/bootstrap del framework que importa el `setup` del feature. Sin lógica de dominio.
 * **Components:** Piezas de UI reutilizables con estado/efectos de presentación. Invocan casos de uso a través de *props* o *hooks*; no contienen lógica de dominio.
 * **Hooks personalizados:** Encapsulan lógica de presentación reutilizable (gestión de formularios, estados de carga, efectos visuales).
 
 Esta separación garantiza que cambiar de React a Vue, Svelte o cualquier otro framework solo afecte la capa de presentación, preservando intacta toda la lógica de negocio en `application` y `domain`.
+
+Los archivos de routing o bootstrap del framework que viven fuera de `modules/*` no pertenecen a `presentation` ni a `infrastructure`: forman el shell externo. Su responsabilidad es unir `presentation` con `modules/<feature>/setup.[tj]s`, no implementar adaptadores concretos ni lógica de negocio.
 
 -----
 
@@ -358,7 +369,7 @@ Vamos a crear un caso de uso desde cero: la creación de un curso. Contamos con 
 
 #### 🏗️ Creación de un Caso de Uso (Ejemplo: `CreateCourse`)
 
-1.  **Definir la Entidad del Dominio** (`Course.ts` dentro de `src/modules/courses/domain/entities`):
+1.  **Definir la Entidad del Dominio** (`Course.ts` dentro de `<source-root>/modules/courses/domain/entities`):
 
     ```typescript
     export interface Course {
@@ -369,7 +380,7 @@ Vamos a crear un caso de uso desde cero: la creación de un curso. Contamos con 
     }
     ```
 
-2.  **Definir la Request del Caso de Uso** (`CreateCourse.ts` dentro de `src/modules/courses/application/use-cases`):
+2.  **Definir la Request del Caso de Uso** (`CreateCourse.ts` dentro de `<source-root>/modules/courses/application/use-cases`):
 
     ```typescript
     import { Course } from '../../domain/entities/Course';
@@ -405,7 +416,7 @@ Para resolver este problema, utilizamos el patrón repositorio.
 El Patrón Repositorio define una interfaz (`CourseRepository`) en la capa de **Domain** (puerto) para acceder a los datos, sin exponer los detalles de su implementación.
 
 ```typescript
-// src/modules/courses/domain/repositories/CourseRepository.ts
+// <source-root>/modules/courses/domain/repositories/CourseRepository.ts
 import { Course } from '../entities/Course';
 
 export interface CourseRepository {

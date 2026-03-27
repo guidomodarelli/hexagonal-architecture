@@ -10,12 +10,14 @@ Implementaremos validaciones en la capa de **Dominio** siguiendo el principio de
 
 Por ejemplo, para el título del curso estableceremos restricciones de longitud mínima y máxima de caracteres.
 
+`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio.
+
 ## Value Object: CourseTitle
 
 Creamos un Value Object en la capa de **Dominio** para encapsular la lógica de validación del título del curso.
 
 ```typescript
-// src/modules/courses/domain/value-objects/CourseTitle.ts
+// <source-root>/modules/courses/domain/value-objects/CourseTitle.ts
 export class CourseTitleNotValidError extends Error {
   constructor(title: string) {
     super(`Course title not valid: ${title}`);
@@ -36,7 +38,7 @@ export const isCourseTitleValid = (title: string): boolean => {
 Creamos un validador en la capa de **Dominio** que verifica todos los atributos del curso de forma centralizada. Esta función lanza errores específicos cuando detecta valores inválidos, permitiendo identificar exactamente qué campo no cumple los requisitos.
 
 ```typescript
-// src/modules/courses/domain/entities/CourseValidator.ts
+// <source-root>/modules/courses/domain/entities/CourseValidator.ts
 import { Course } from './Course';
 import { isCourseIdValid, CourseIdNotValidError } from '../value-objects/CourseId';
 import { isCourseTitleValid, CourseTitleNotValidError } from '../value-objects/CourseTitle';

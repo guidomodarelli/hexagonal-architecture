@@ -15,14 +15,16 @@ Idealmente, un cambio en la infraestructura (pasar de REST a gRPC, de Axios a Fe
 
 ## DTOs de Aplicación (DTOs internos: Inputs/Outputs de Casos de Uso)
 
+`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio.
+
 ### Cuándo se usa
 - Como "comando" o "consulta" de un caso de uso: parámetros de entrada y, opcionalmente, su resultado.
 - En el límite **Presentación ↔ Aplicación** (no en el límite con el mundo externo).
 
 ### Dónde se define
-- `src/modules/<feature>/application/commands` — **inputs** para casos de uso de escritura (CreateUserInput, UpdateUserInput, DeleteUserInput)
-- `src/modules/<feature>/application/queries` — **inputs** para casos de uso de lectura (GetUserByIdQuery, ListUsersQuery)
-- `src/modules/<feature>/application/results` — **outputs** opcionales cuando la respuesta del caso de uso necesita un formato específico para la UI (UserDetailResult, UserListResult) (**Importante:** Estos NO son DTOs de infraestructura — son contratos internos de aplicación que expresan las necesidades de lectura de la UI sin acoplarse a formatos externos.)
+- `<source-root>/modules/<feature>/application/commands` — **inputs** para casos de uso de escritura (CreateUserInput, UpdateUserInput, DeleteUserInput)
+- `<source-root>/modules/<feature>/application/queries` — **inputs** para casos de uso de lectura (GetUserByIdQuery, ListUsersQuery)
+- `<source-root>/modules/<feature>/application/results` — **outputs** opcionales cuando la respuesta del caso de uso necesita un formato específico para la UI (UserDetailResult, UserListResult) (**Importante:** Estos NO son DTOs de infraestructura — son contratos internos de aplicación que expresan las necesidades de lectura de la UI sin acoplarse a formatos externos.)
 
 > **Nota sobre combinación:** Un caso de uso puede usar **command/query como input** y **result como output** simultáneamente. Por ejemplo: `createUser(input: CreateUserInput): Promise<UserCreatedResult>` o `listUsers(query: ListUsersQuery): Promise<UserListResult[]>`. No es obligatorio tener las tres carpetas; usá solo lo que tu caso de uso requiera.
 
@@ -48,7 +50,7 @@ Idealmente, un cambio en la infraestructura (pasar de REST a gRPC, de Axios a Fe
 **Ejemplo mínimo:**
 
 ```ts
-// src/modules/users/application/commands/CreateUserInput.ts
+// <source-root>/modules/users/application/commands/CreateUserInput.ts
 export interface CreateUserInput {
   name: string;
   email: string;
@@ -64,8 +66,8 @@ export interface CreateUserInput {
 - Para requests y responses "crudos" que requieren mapeo hacia/desde el dominio
 
 ### Dónde se define
-- `src/modules/<feature>/infrastructure/api/dto`
-- `src/modules/<feature>/infrastructure/api/dto/mapper.ts` (lógica de conversión)
+- `<source-root>/modules/<feature>/infrastructure/api/dto`
+- `<source-root>/modules/<feature>/infrastructure/api/dto/mapper.ts` (lógica de conversión)
 
 ### Desde dónde se importa ✅
 - **Solo desde infraestructura**: api/gateways/adapters/repositorios
@@ -88,14 +90,14 @@ export interface CreateUserInput {
 **Ejemplo mínimo:**
 
 ```ts
-// src/modules/users/infrastructure/api/dto/UserDto.ts
+// <source-root>/modules/users/infrastructure/api/dto/UserDto.ts
 export interface UserDto {
   id: string;
   name: string;
   email: string;
 }
 
-// src/modules/users/infrastructure/api/dto/mapper.ts
+// <source-root>/modules/users/infrastructure/api/dto/mapper.ts
 export const toDomain = (dto: UserDto): User => {
   return new User(dto.id, dto.name, dto.email);
 };

@@ -177,18 +177,32 @@ export function CreateCourse(
 
 **Uso:**
 ```typescript
-// En App.tsx o main.ts (composición de dependencias)
+// En <source-root>/modules/courses/setup.ts (composition root del feature)
 const courseRepository = new CoursePostgreSQLRepository();
 const createCourse = CreateCourse(courseRepository);
+export const useCases = {
+  courses: {
+    createCourse,
+  },
+};
 
-// En el componente
-await createCourse({ title: '...', description: '...', duration: 3600 });
+// En un entrypoint o contenedor externo
+const onCreateCourse = useCases.courses.createCourse;
+
+// En la View o componente
+await onCreateCourse({
+  title: '...',
+  description: '...',
+  duration: 3600
+});
 ```
 
 **Ventajas:**
 * Dependencias explícitas y fáciles de mockear en tests.
 * Separación clara entre configuración (inyección) y ejecución (invocación).
 * Compatible con DI containers si la aplicación crece.
+
+`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio. En ambos casos, el composition root recomendado vive en `modules/<feature>/setup.[tj]s`; si además existe un `modules/setup.[tj]s` global, mantenelo como agregador liviano o factories lazy por feature.
 
 ### **¿Por qué usar casos de uso en lugar de servicios genéricos?**
 

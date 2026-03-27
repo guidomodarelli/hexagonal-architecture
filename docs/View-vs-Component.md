@@ -8,7 +8,7 @@ La **View** —también llamada *Page*— se encarga de **orquestar toda la pant
 Sus responsabilidades principales son:
 
 1️⃣ **Composición:** agrupa y organiza los distintos componentes visuales que conforman la página.
-2️⃣ **Gestión de dependencias:** consume **casos de uso** o **handlers** ya compuestos desde `main.ts`, un *feature bootstrap* o un contenedor de dependencias. Puede decidir qué dependencias de presentación pasar al componente, pero evita instanciar adaptadores concretos en la propia View.
+2️⃣ **Gestión de dependencias:** recibe **casos de uso** o **handlers** ya compuestos desde un archivo de ruta o bootstrap del framework construido sobre `<source-root>/modules/<feature>/setup.[tj]s`. Puede decidir qué dependencias de presentación pasar al componente, pero evita instanciar adaptadores concretos o importar el composition root en la propia View.
 3️⃣ **Manejo de efectos secundarios:** controla los **side-effects** externos (peticiones, listeners, suscripciones, etc.).
 4️⃣ **Sin reglas de dominio:** no contiene lógica de negocio; su función es puramente estructural y de coordinación.
 
@@ -26,7 +26,8 @@ Sus funciones principales son:
 
 Ejemplo mínimo (React) con dependencias mínimas
 
-Los imports con `@/` asumen un alias configurado hacia `src/`.
+Los imports con `@/` asumen un alias configurado hacia `<source-root>`.
+`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio.
 Para mantener el foco, el ejemplo usa solo `title` y `duration`; si tu caso real incluye más campos (por ejemplo `description`), la separación entre `View` y `Component` no cambia.
 
 ## Componente de formulario (solo React)
@@ -89,26 +90,47 @@ export function CreateCourseForm({ onCreate }: Props) {
 }
 ```
 
-## Composition root mínimo (fuera de la View)
+## Setup mínimo del feature en `modules/courses/setup.ts`
 
 ```ts
 import { CreateCourse } from '@/modules/courses/application/use-cases/CreateCourse';
 import { CourseRepositoryFetch } from '@/modules/courses/infrastructure/repositories/CourseRepositoryFetch';
 
-const repo = new CourseRepositoryFetch();
-export const createCourse = CreateCourse(repo);
+export function makeCreateCourseHandler() {
+  const repo = new CourseRepositoryFetch();
+  return CreateCourse(repo);
+}
 ```
 
-## View que consume un caso de uso ya compuesto
+## Archivo de ruta o bootstrap del framework que inyecta el caso de uso
+
+Este archivo vive fuera de `modules/*` (por ejemplo en `app/routes/` o `src/pages/`). No pertenece a `presentation`, `application`, `domain` ni `infrastructure`: es el shell externo que conecta el routing del framework con la UI.
+
+```tsx
+import React from 'react';
+import { makeCreateCourseHandler } from '@/modules/courses/setup';
+import { CreateCourseView } from '@/modules/courses/presentation/pages/CreateCourseView';
+
+const createCourse = makeCreateCourseHandler();
+
+export function CreateCourseRoute() {
+  return <CreateCourseView onCreate={createCourse} />;
+}
+```
+
+## View que recibe un caso de uso ya compuesto
 
 ```tsx
 import React from 'react';
 import { CreateCourseForm } from './CreateCourseForm';
-import { createCourse } from '@/app/courses/createCourse';
 
-export function CreateCourseView() {
-  return <CreateCourseForm onCreate={createCourse} />;
+interface Props {
+  onCreate: (data: { title: string; duration: number }) => Promise<void>;
+}
+
+export function CreateCourseView({ onCreate }: Props) {
+  return <CreateCourseForm onCreate={onCreate} />;
 }
 ```
 
-Si preferís usar un contenedor de dependencias o una factory por módulo, el principio no cambia: la View **consume** la dependencia compuesta, no crea adaptadores concretos.
+Si preferís exponer además un `modules/setup.[tj]s` global, mantenelo como re-export o factory liviana por feature. El principio no cambia: `presentation` **recibe** la dependencia compuesta desde afuera, no crea adaptadores concretos ni importa el composition root.
