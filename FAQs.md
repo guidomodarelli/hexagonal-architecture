@@ -150,36 +150,42 @@ Por **simplicidad y funcionalidad**:
 * **Inmutabilidad:** Cada invocación es independiente, sin efectos secundarios ocultos.
 * **Menos boilerplate:** No necesitamos constructores, métodos auxiliares ni keywords como `new` o `this`.
 
-**¿Cuándo usar clases?** Si el caso de uso necesita:
-* Estado interno persistente entre operaciones.
-* Múltiples métodos relacionados (aunque esto podría indicar que necesitas dividir en casos de uso más pequeños).
-* Integración con frameworks que requieren clases (algunos sistemas de DI).
+**¿Cuándo usar clases?**
+* En adapters concretos de `infrastructure` que encapsulan SDKs, clientes HTTP, configuración técnica o parámetros de constructor.
+* Si realmente necesitás estado interno persistente entre operaciones.
+* Si integrás con frameworks que requieren clases (algunos sistemas de DI o controladores OO).
 
 ### **¿Cómo inyecto dependencias en `CreateCourse`?**
 
 **Enfoque funcional (currying/factory):**
 
 ```typescript
-export function CreateCourse(
-  courseRepository: CourseRepository
-): (request: CreateCourseRequest) => Promise<CreateCourseResponse> {
-  return async (request: CreateCourseRequest): Promise<CreateCourseResponse> => {
+type CreateCourseDependencies = {
+  courseRepository: CourseRepository;
+  generateId: () => string;
+};
+
+export const CreateCourse =
+  ({ courseRepository, generateId }: CreateCourseDependencies) =>
+  async (request: CreateCourseRequest): Promise<CreateCourseResponse> => {
     const course: Course = {
+      ...request,
       id: generateId(),
-      ...request
     };
 
     ensureCourseIsValid(course);
     await courseRepository.save(course);
   };
-}
 ```
 
 **Uso:**
 ```typescript
 // En <source-root>/modules/courses/setup.ts (composition root del feature)
 const courseRepository = new CoursePostgreSQLRepository();
-const createCourse = CreateCourse(courseRepository);
+const createCourse = CreateCourse({
+  courseRepository,
+  generateId: () => crypto.randomUUID(),
+});
 export const useCases = {
   courses: {
     createCourse,
@@ -200,6 +206,7 @@ await onCreateCourse({
 **Ventajas:**
 * Dependencias explícitas y fáciles de mockear en tests.
 * Separación clara entre configuración (inyección) y ejecución (invocación).
+* Permite dejar el núcleo funcional y reservar las clases para adapters de `infrastructure`.
 * Compatible con DI containers si la aplicación crece.
 
 `<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio. En ambos casos, el composition root recomendado vive en `modules/<feature>/setup.[tj]s`; si además existe un `modules/setup.[tj]s` global, mantenelo como agregador liviano o factories lazy por feature.

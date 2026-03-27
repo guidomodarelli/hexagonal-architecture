@@ -3,6 +3,7 @@
 ## 🔍 Aspectos clave a tener en cuenta
 
 * Las particularidades de cada **adaptador** o **implementación** de nuestras interfaces se definen mediante **inyección a través del constructor**.
+  Esto convive perfectamente con un núcleo funcional: `application` puede usar casos de uso curried mientras `infrastructure` resuelve el wiring técnico con clases.
   **Ejemplos:**
 
   * Conexión con la base de datos en los repositorios.

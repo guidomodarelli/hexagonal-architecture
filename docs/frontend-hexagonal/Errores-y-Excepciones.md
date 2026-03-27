@@ -167,6 +167,8 @@ export interface AuthorizationPolicy {
 }
 ```
 
+Para mantener el foco en el manejo de errores, el ejemplo de abajo usa una clase. La convención preferida de este repo para frontend sigue siendo `searchInIndex(deps)(params)`, pero la frontera entre error de dominio y error técnico no cambia.
+
 ```ts
 // application/use-cases/search-in-index.ts
 import {

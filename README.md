@@ -222,6 +222,36 @@ Ambas interfaces comparten campos base (`id`, `username`, `avatarUrl`), pero `As
 
 En resumen, preferir interfaces específicas por contexto sobre interfaces genéricas con campos opcionales mejora la expresividad del código, reduce errores y facilita la evolución del sistema.
 
+### 🧵 Currying para `dependency injection` en frontend
+
+Cuando aplicamos hexagonal en frontend, la convención preferida de este repo para el núcleo es:
+
+* `application` y los servicios puros de `domain` se implementan como **funciones curried**.
+* La **primera función** recibe dependencias estables del módulo (`repository`, `policy`, `clock`, `generateId`, etc.).
+* La **segunda función** recibe el input del caso de uso o del flujo en runtime.
+* Si hace falta un tercer nivel, debe separar una responsabilidad real (por ejemplo `AbortSignal`, callbacks opcionales o políticas configurables), no agregar ceremonia.
+
+```typescript
+type CreateCourseDependencies = {
+  courseRepository: CourseRepository;
+  generateId: () => string;
+};
+
+export const CreateCourse =
+  ({ courseRepository, generateId }: CreateCourseDependencies) =>
+  async (request: CreateCourseRequest): Promise<void> => {
+    const course: Course = {
+      ...request,
+      id: generateId(),
+    };
+
+    ensureCourseIsValid(course);
+    await courseRepository.save(course);
+  };
+```
+
+La capa `infrastructure` no necesita seguir ese mismo estilo. En adapters concretos suele ser más claro usar **clases** como `CourseRepositoryFetch`, `CourseRepositoryPostgreSQL` o `LocalStorageCourseRepository`, especialmente cuando encapsulan clientes externos, configuración técnica o parámetros de constructor.
+
 -----
 
 ### 🛠️ *Frameworks* y Arquitectura Hexagonal
@@ -327,7 +357,7 @@ View (Page) --> Component --> Use Case --> Repository <--- Impl Repository
 
 #### ✨ Buenas Prácticas Clave
 
-* **Inyección de dependencias:** Pasar repositorios (interfaces) a los casos de uso para evitar el acoplamiento a implementaciones concretas. Esto facilita el testing y el cambio de adaptadores.
+* **Inyección de dependencias:** En frontend preferimos casos de uso funcionales con currying (`createCourse(deps)(input)`). Los adaptadores concretos pueden ser clases en `infrastructure`; el `setup` del feature hace el wiring entre ambos.
 * **Validaciones en Domain:** Mantener las validaciones en la capa de **Domain** (e.g., *value-objects*), permitiendo su reutilización tanto en casos de uso como en la UI para feedback inmediato.
 * **Traducción en Infrastructure:** Los adaptadores de **Infrastructure** deben traducir DTOs externos a entidades de dominio y viceversa, aislando el dominio de cambios en APIs externas.
 * **Presentation como orquestadora:** La capa de **Presentation** solo orquesta la interacción del usuario y muestra errores/validaciones provistas por Domain/Application, sin contener lógica de negocio.
@@ -397,7 +427,26 @@ Vamos a crear un caso de uso desde cero: la creación de un curso. Contamos con 
     * Se usa un `CreateCourseRequest` separado de la entidad `Course` para asegurar que el cliente solo proporcione los campos necesarios para la creación (e.g., excluyendo el `id`, que es generado por el sistema).
     * `CreateCourseResponse` es `void` en este ejemplo, pero podría devolver el `id` o el objeto `Course` si fuera necesario.
 
-3.  **Inyectar Dependencias** (enfoque funcional): Los casos de uso son funciones puras que reciben sus dependencias (e.g., el `CourseRepository`) como parámetros.
+3.  **Inyectar Dependencias** (enfoque funcional): Los casos de uso son funciones puras con DI por currying. El primer nivel recibe dependencias estables y el segundo el input del caso de uso.
+
+    ```typescript
+    type CreateCourseDependencies = {
+      courseRepository: CourseRepository;
+      generateId: () => string;
+    };
+
+    export const CreateCourse =
+      ({ courseRepository, generateId }: CreateCourseDependencies) =>
+      async (request: CreateCourseRequest): Promise<CreateCourseResponse> => {
+        const course: Course = {
+          ...request,
+          id: generateId(),
+        };
+
+        ensureCourseIsValid(course);
+        await courseRepository.save(course);
+      };
+    ```
 
 **¿Cómo guardamos el curso, si desde la capa de aplicación no sabemos nada de infraestructura?**
 
@@ -498,3 +547,4 @@ Resumen de decisiones clave:
 - DTOs externos viven en `infrastructure/api/dto`; la aplicación define sus propios inputs (comandos) y no importa DTOs de la capa `infrastructure`.
 - Puertos orientados al negocio en `domain/repositories` o `domain/services`; contratos técnicos genéricos (`HttpClient`, `DatabaseClient`, brokers genéricos) viven en `application/ports` o quedan encapsulados dentro de `infrastructure/`.
 - Infraestructura puede importar dominio y aplicación; dominio y aplicación no importan infraestructura.
+- En frontend, el patrón preferido para `application` es `useCase(deps)(input)`; en `infrastructure` es válido y normal usar clases para adapters concretos.

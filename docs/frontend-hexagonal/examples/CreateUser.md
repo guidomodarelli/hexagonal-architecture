@@ -89,14 +89,16 @@ import { User } from '../../domain/User';
 import { Email } from '../../domain/Email';
 import { CreateUserInput } from '../commands/CreateUserInput';
 
-export function CreateUser(
-  repo: UserRepository
-): (input: CreateUserInput) => Promise<User> {
-  return async (input: CreateUserInput): Promise<User> => {
+type CreateUserDependencies = {
+  userRepository: UserRepository;
+};
+
+export const CreateUser =
+  ({ userRepository }: CreateUserDependencies) =>
+  async (input: CreateUserInput): Promise<User> => {
     const emailVO = new Email(input.email);
-    return repo.create(input.name, emailVO.value);
+    return userRepository.create(input.name, emailVO.value);
   };
-}
 ```
 
 ### infrastructure/api/dto/CreateUserDto.ts
@@ -172,7 +174,9 @@ import { CreateUser } from '@/modules/users/application/use-cases/CreateUser';
 import { UserRepositoryFetch } from '@/modules/users/infrastructure/repositories/UserRepositoryFetch';
 
 export function makeCreateUserHandler() {
-  return CreateUser(new UserRepositoryFetch());
+  const userRepository = new UserRepositoryFetch();
+
+  return CreateUser({ userRepository });
 }
 ```
 
@@ -210,5 +214,7 @@ export class UserRepositoryFetch implements UserRepository {
 
 - DTOs (external) in `infrastructure/api/dto`. Internal use case inputs in `application/commands`.
 - Port in `domain/repositories`. Adapter in `infrastructure/repositories`.
+- The use case keeps stable dependencies in the first call and runtime input in the second call.
+- The adapter can stay class-based in `infrastructure` without changing the functional shape of the use case.
 - An outer route or framework entrypoint imports from `modules/users/setup`; UI receives the composed handler by injection.
 - infrastructure can import domain and application. Application and domain don't import infrastructure.

@@ -80,16 +80,18 @@ import { UserRepository } from '../../domain/repositories/UserRepository';
 import { User } from '../../domain/User';
 import { UserFilterInput } from '../queries/UserFilterInput';
 
-export function GetUsers(
-  repo: UserRepository
-): (input: UserFilterInput) => Promise<{ items: User[]; total: number }> {
-  return async (input: UserFilterInput): Promise<{ items: User[]; total: number }> => {
+type GetUsersDependencies = {
+  userRepository: UserRepository;
+};
+
+export const GetUsers =
+  ({ userRepository }: GetUsersDependencies) =>
+  async (input: UserFilterInput): Promise<{ items: User[]; total: number }> => {
     const page = input.page ?? 1;
     const limit = input.limit ?? 20;
     const query = input.query?.trim() || undefined;
-    return repo.search({ query, page, limit });
+    return userRepository.search({ query, page, limit });
   };
-}
 ```
 
 ### infrastructure/api/dto/UserDto.ts
@@ -171,7 +173,9 @@ import { GetUsers } from '@/modules/users/application/use-cases/GetUsers';
 import { UserRepositoryFetch } from '@/modules/users/infrastructure/repositories/UserRepositoryFetch';
 
 export function makeGetUsersHandler() {
-  return GetUsers(new UserRepositoryFetch());
+  const userRepository = new UserRepositoryFetch();
+
+  return GetUsers({ userRepository });
 }
 ```
 
@@ -195,4 +199,6 @@ export function UsersSearchRoute() {
 - `UserFilterInput` is an application DTO: internal contract between Presentation ↔ Application.
 - `GetUsersResponseDto` and `UserDto` are infrastructure DTOs: external HTTP contract.
 - The repository (adapter) translates external DTO → domain before returning the result to the use case.
+- The use case keeps stable dependencies in the first call and runtime input in the second call.
+- The adapter can stay class-based in `infrastructure` without changing the functional shape of the use case.
 - An outer route or framework entrypoint imports from `modules/users/setup`; UI receives the composed handler by injection.

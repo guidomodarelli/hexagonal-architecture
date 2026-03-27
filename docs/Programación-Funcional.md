@@ -1,47 +1,138 @@
 # Programación funcional en arquitectura hexagonal
 
-En el contexto de **JavaScript en frontend**, el uso de clases no es tan común como en otros lenguajes orientados a objetos. Por eso, en este enfoque hemos preferido evitarlas y adoptar un estilo más **funcional y pragmático**.
+En el contexto de **JavaScript/TypeScript en frontend**, este repo prefiere un núcleo más **funcional y pragmático**. Eso no significa prohibir las clases en todo el sistema: significa que `application` y los servicios puros de `domain` suelen quedar más claros como funciones, mientras que `infrastructure` puede usar clases sin problema.
 
-## Ventajas de este enfoque
+## Convención recomendada
 
-**1. Sin instanciación de objetos**
+### 1. Casos de uso con `dependency injection` por currying
 
-No existe un `new Course()`. El objeto que recibimos como parámetro ya cumple con la interfaz de curso, así que la responsabilidad se limita a **validar sus propiedades** en lugar de construir instancias.
-
-**2. Validaciones como funciones puras**
-
-Al no haber constructores, no podemos ejecutar las validaciones en la creación de la instancia. En su lugar, definimos **funciones independientes y reutilizables** —por ejemplo `courseID.ts`, `courseTitle.ts`, etc.— que validan cada aspecto del curso y lanzan una excepción si algo es incorrecto.
+La forma preferida para un caso de uso en frontend es:
 
 ```typescript
-// Ejemplo conceptual
-ensureCourseIsValid(course) // Agrupa todas las validaciones
+type CreateCourseDependencies = {
+  courseRepository: CourseRepository;
+  generateId: () => string;
+};
+
+export const CreateCourse =
+  ({ courseRepository, generateId }: CreateCourseDependencies) =>
+  async (request: CreateCourseRequest): Promise<void> => {
+    const course: Course = {
+      ...request,
+      id: generateId(),
+    };
+
+    ensureCourseIsValid(course);
+    await courseRepository.save(course);
+  };
 ```
 
-**Beneficios:**
+La regla práctica es:
+
+- La **primera función** recibe dependencias estables del módulo.
+- La **segunda función** recibe el input del caso de uso en runtime.
+- Si aparece una tercera función, debe separar una preocupación real, no agregar ceremonia.
+
+Por ejemplo, un tercer nivel puede tener sentido si querés separar `AbortSignal` o una policy opcional:
+
+```typescript
+const SearchCourses =
+  ({ courseRepository }: SearchCoursesDependencies) =>
+  (filters: SearchCoursesFilters) =>
+  async (signal?: AbortSignal): Promise<Course[]> => {
+    return courseRepository.search(filters, signal);
+  };
+```
+
+## 2. Validaciones como funciones puras
+
+No hace falta un `new Course()` para validar reglas simples. Podemos definir funciones independientes y reutilizables, por ejemplo en `CourseId.ts`, `CourseTitle.ts` o `CourseDuration.ts`.
+
+```typescript
+ensureCourseIsValid(course);
+```
+
+Beneficios:
+
 - Funciones **puras y testeables** de forma aislada
 - **Reutilizables en la lógica de UI**, manteniendo consistencia entre capas
 - Separación clara de responsabilidades
 
-**3. Repositorios como funciones**
+## 3. Puertos explícitos, implementación flexible
 
-En vez de definir una interfaz de repositorio y luego instanciarla con algo como `createLocalStorageRepository()`, el tipado y la definición del repositorio pueden hacerse **directamente como funciones exportadas**.
+El punto importante no es “todo como función” sino mantener **dependencias explícitas** y contratos estables.
+
+El puerto puede seguir representándose como una `interface`:
 
 ```typescript
-// En lugar de: repository.save(course)
-// Usamos: saveCourse(course)
+export interface CourseRepository {
+  save(course: Course): Promise<void>;
+  findAll(): Promise<Course[]>;
+}
 ```
 
-Así, un caso de uso recibe directamente la función que necesita (`saveCourse`, `findCourseById`, etc.), sin necesidad de encapsularlas en un objeto.
+Y el caso de uso puede recibir ese puerto dentro de un objeto de dependencias:
+
+```typescript
+type CreateCourseDependencies = {
+  courseRepository: CourseRepository;
+};
+```
+
+Eso mantiene el núcleo funcional sin obligarte a modelar toda la infraestructura como funciones sueltas.
+
+## 4. Infraestructura: las clases están bien
+
+En `infrastructure`, las clases suelen ser una buena opción para adapters concretos porque encapsulan mejor:
+
+- Clientes de terceros (`fetch`, SDKs, `Pool`, `Producer`, etc.)
+- Configuración técnica (`baseUrl`, headers, credenciales, timeouts)
+- Estado técnico o wiring propio del adaptador
+
+```typescript
+export class CourseRepositoryFetch implements CourseRepository {
+  constructor(
+    private readonly http: typeof fetch,
+    private readonly baseUrl: string
+  ) {}
+
+  async save(course: Course): Promise<void> {
+    const response = await this.http(`${this.baseUrl}/courses`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(course),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save course: ${response.status}`);
+    }
+  }
+}
+```
+
+Luego el `setup.ts` hace la composición:
+
+```typescript
+const courseRepository = new CourseRepositoryFetch(fetch, '/api');
+
+export const makeCreateCourseHandler = () =>
+  CreateCourse({
+    courseRepository,
+    generateId: () => crypto.randomUUID(),
+  });
+```
 
 ---
 
 ## Resumen
 
-Este enfoque aprovecha la **naturaleza funcional de JavaScript** para simplificar la arquitectura:
+Este enfoque aprovecha la **naturaleza funcional de JavaScript** sin volver dogmática la arquitectura:
 
 - ✅ **Validaciones**: funciones puras, reutilizables y testeables
-- ✅ **Repositorios**: funciones tipadas, inyectables sin boilerplate
-- ✅ **Casos de uso**: orquestan funciones en lugar de depender de objetos instanciados
+- ✅ **Casos de uso**: DI por currying para separar configuración de ejecución
+- ✅ **Infraestructura**: adapters concretos pueden ser clases si eso hace más claro el borde técnico
 
 ## ¿Tienen sentido los Value Objects?
 
@@ -53,7 +144,7 @@ En programación orientada a objetos, un **Value Object** encapsula un valor y c
 
 ### Aplicación en frontend: Value Files
 
-En frontend podemos adoptar el mismo patrón de forma **funcional y ligera**. En lugar de clases, usamos **archivos independientes** (Value Files) que exportan:
+En frontend podemos adoptar el mismo patrón de forma **funcional y ligera**. Para reglas simples, solemos usar **archivos independientes** (Value Files) que exportan:
 
 1. **Tipo semántico** (alias sobre primitivos)
 2. **Reglas de validación**
@@ -105,4 +196,4 @@ export interface Course {
 
 ---
 
-**Conclusión:** Los Value Objects tienen pleno sentido en frontend mediante un enfoque pragmático: **tipos alias + funciones puras** en archivos separados. Mantiene la semántica y disciplina del dominio sin la complejidad de clases.
+**Conclusión:** Los Value Objects tienen pleno sentido en frontend mediante un enfoque pragmático: **tipos alias + funciones puras** en archivos separados cuando alcanza, o clases si el dominio realmente gana algo con ello. La preferencia de este repo es mantener funcionales los casos de uso y servicios puros del núcleo, y usar clases sobre todo en adapters de `infrastructure`.

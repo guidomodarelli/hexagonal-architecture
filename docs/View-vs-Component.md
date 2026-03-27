@@ -96,11 +96,19 @@ export function CreateCourseForm({ onCreate }: Props) {
 import { CreateCourse } from '@/modules/courses/application/use-cases/CreateCourse';
 import { CourseRepositoryFetch } from '@/modules/courses/infrastructure/repositories/CourseRepositoryFetch';
 
+const generateId = () => crypto.randomUUID();
+
 export function makeCreateCourseHandler() {
-  const repo = new CourseRepositoryFetch();
-  return CreateCourse(repo);
+  const courseRepository = new CourseRepositoryFetch(fetch, '/api');
+
+  return CreateCourse({
+    courseRepository,
+    generateId,
+  });
 }
 ```
+
+En esta convención, el caso de uso se mantiene funcional y el adapter concreto de `infrastructure` puede ser una clase.
 
 ## Archivo de ruta o bootstrap del framework que inyecta el caso de uso
 

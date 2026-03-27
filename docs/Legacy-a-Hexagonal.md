@@ -24,15 +24,15 @@ Comenzar por tipos esenciales: Entidades, DTOs e *interfaces* de repositorio. Es
 Extraer interacciones con la fuente de datos (*localStorage*, API) a una *interface* en *domain*. Implementar el adaptador concreto en *infrastructure*.
 
 ### 5️⃣ Implementar Casos de Uso
-Crear funciones puras en *application* que reciban la interfaz del repositorio vía inyección de dependencias. Mantén la lógica agnóstica de la infraestructura.
+Crear funciones puras en *application* con `dependency injection` por currying. El primer nivel recibe dependencias estables del módulo; el segundo, el input del caso de uso. Mantén la lógica agnóstica de la infraestructura.
 
 ### 6️⃣ Mover Reglas de Negocio al Dominio
 Crear *value-objects* y validadores. **Principio clave:** el dominio lanza errores de negocio; los casos de uso los coordinan y propagan. La traducción a HTTP/UI ocurre en el borde.
 
 ### 7️⃣ Crear `modules/<feature>/setup.[tj]s`
 Usarlo como **composition root** por feature:
-- Instanciar repositorios
-- Construir casos de uso
+- Instanciar adapters concretos
+- Construir casos de uso curried
 - Exportar handlers o `useCases` del módulo ya compuestos
 - Dejar que `main.ts`, `index.ts` o el entrypoint del framework solo consuman el `setup` del feature que necesitan
 

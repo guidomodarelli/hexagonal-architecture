@@ -39,17 +39,28 @@ Proveer una implementación concreta (`LocalStorageCourseRepository`) en `infras
 
 #### 5. Implementar casos de uso en la capa de aplicación
 
-Crear funciones puras que reciban la interfaz del repositorio (inyección de dependencias):
+Crear funciones puras con `dependency injection` por currying. El primer nivel recibe dependencias estables; el segundo, el input del caso de uso:
 
 ```typescript
-export function CreateCourse(repo: CourseRepository) {
-  return async (req: CreateCourseRequest): Promise<void> => {
+type CreateCourseDependencies = {
+  courseRepository: CourseRepository;
+  generateId: () => string;
+};
+
+export const CreateCourse =
+  ({ courseRepository, generateId }: CreateCourseDependencies) =>
+  async (req: CreateCourseRequest): Promise<void> => {
+    const course: Course = {
+      ...req,
+      id: generateId(),
+    };
+
     // Lógica del caso de uso
+    await courseRepository.save(course);
   };
-}
 ```
 
-Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo invoca estos use-cases.
+Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo invoca estos use-cases. Los adapters concretos de `infrastructure` pueden ser clases (`LocalStorageCourseRepository`, `CourseRepositoryFetch`, etc.) y se instancian desde `setup.[tj]s`.
 
 #### 6. Mover reglas de negocio al dominio
 
@@ -58,7 +69,7 @@ Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo in
 
 #### 7. Crear `modules/<feature>/setup.[tj]s` como composition root
 
-- Crear `<source-root>/modules/<feature>/setup.[tj]s` por feature para instanciar repositorios, construir use-cases y exportar handlers o `useCases` ya compuestos.
+- Crear `<source-root>/modules/<feature>/setup.[tj]s` por feature para instanciar adapters concretos, construir use-cases curried y exportar handlers o `useCases` ya compuestos.
 - Si el framework exige un `main.ts`, `index.ts` o archivo de routing, ese entrypoint debe **consumir** solo el `setup` del feature que necesita. En apps con code splitting por ruta, cada ruta importa su propio `setup`; un `modules/setup.[tj]s` global es opcional como agregador liviano o factories lazy por feature.
 - Evitar lógica de negocio y acceso directo a localStorage en el entrypoint del framework.
 
@@ -73,7 +84,7 @@ Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo in
 
 - [ ] E2E cubriendo flujos críticos en el código legacy
 - [ ] Interfaz `CourseRepository` y adaptación a localStorage
-- [ ] Use-cases puros con inyección de dependencias
+- [ ] Use-cases puros con `dependency injection` por currying
 - [ ] Domain: value-objects y validadores
 - [ ] `<source-root>/modules/<feature>/setup.[tj]s` creado como composition root por feature
 - [ ] El entrypoint del framework reducido a entorno/arranque y consumo del `setup` del feature
