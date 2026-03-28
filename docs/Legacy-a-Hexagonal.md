@@ -30,11 +30,12 @@ Crear funciones puras en *application* con `dependency injection` por currying. 
 Crear *value-objects* y validadores. **Principio clave:** el dominio lanza errores de negocio; los casos de uso los coordinan y propagan. La traducción a HTTP/UI ocurre en el borde.
 
 ### 7️⃣ Crear `modules/<feature>/setup.[tj]s`
-Usarlo como **composition root** por feature:
-- Instanciar adapters concretos
-- Construir casos de uso curried
-- Exportar handlers o `useCases` del módulo ya compuestos
-- Dejar que `main.ts`, `index.ts` o el entrypoint del framework solo consuman el `setup` del feature que necesitan
+Usarlo como **builder** por feature:
+- Declarar `build<Feature>Module(deps)` con dependencias explícitas
+- Construir casos de uso curried sin instanciar adapters concretos dentro del feature
+- Exportar `useCases` ya compuestos a partir de esas dependencias
+- Si conviene centralizar wiring compartido, crear además `modules/setup.[tj]s` como agregador o factories lazy por feature
+- Dejar que `main.ts`, `index.ts` o el entrypoint del framework consuman `modules/setup.[tj]s` o compongan solo el feature que necesitan con `build<Feature>Module(deps)`
 
 ### 8️⃣ Escribir *Tests* Unitarios
 Con la lógica aislada:
@@ -53,7 +54,7 @@ Registrar decisiones de arquitectura (*Architecture Decision Records*) para mant
 ### 1️⃣2️⃣ Iterar
 Repetir el proceso para otras áreas del sistema hasta completar la migración.
 
-`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio. El composition root recomendado vive en `modules/<feature>/setup.[tj]s`; si además existe un `modules/setup.[tj]s` global, mantenelo como agregador liviano o factories lazy por feature.
+`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio. `modules/<feature>/setup.[tj]s` queda reservado para `build<Feature>Module(deps)`; `modules/setup.[tj]s` es opcional como agregador o factories lazy por feature cuando querés centralizar wiring compartido.
 
 ---
 

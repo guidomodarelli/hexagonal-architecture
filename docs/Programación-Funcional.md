@@ -151,19 +151,47 @@ export class CourseRepositoryHttp implements CourseRepository {
 }
 ```
 
-Luego el `setup.ts` hace la composición:
+Luego `modules/<feature>/setup.ts` arma el builder del módulo:
 
 ```typescript
+import { CreateCourse } from '@/modules/courses/application/use-cases/CreateCourse';
+import type { CourseRepository } from '@/modules/courses/domain/repositories/CourseRepository';
+
+export function buildCoursesModule({
+  courseRepository,
+  generateId,
+}: {
+  courseRepository: CourseRepository;
+  generateId: () => string;
+}) {
+  return {
+    useCases: {
+      createCourse: CreateCourse({
+        courseRepository,
+        generateId,
+      }),
+    },
+  };
+}
+```
+
+Y, si querés centralizar el wiring, `modules/setup.ts` puede actuar como agregador opcional:
+
+```typescript
+import { buildCoursesModule } from '@/modules/courses/setup';
 import { createBrowserHttpClient } from '@/modules/courses/infrastructure/http/BrowserHttp/createBrowserHttpClient';
+import { CourseRepositoryHttp } from '@/modules/courses/infrastructure/http/BrowserHttp/repositories/CourseRepositoryHttp';
 
-const httpClient = createBrowserHttpClient('/api');
-const courseRepository = new CourseRepositoryHttp(httpClient);
+export function createRequestModules() {
+  const httpClient = createBrowserHttpClient('/api');
 
-export const makeCreateCourseHandler = () =>
-  CreateCourse({
-    courseRepository,
-    generateId: () => crypto.randomUUID(),
-  });
+  return {
+    courses: buildCoursesModule({
+      courseRepository: new CourseRepositoryHttp(httpClient),
+      generateId: () => crypto.randomUUID(),
+    }),
+  };
+}
 ```
 
 ---

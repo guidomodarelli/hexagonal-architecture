@@ -180,20 +180,41 @@ export const CreateCourse =
 
 **Uso:**
 ```typescript
-// En <source-root>/modules/courses/setup.ts (composition root del feature)
-const courseRepository = new CoursePostgreSQLRepository();
-const createCourse = CreateCourse({
-  courseRepository,
-  generateId: () => crypto.randomUUID(),
-});
-export const useCases = {
-  courses: {
-    createCourse,
-  },
+// En <source-root>/modules/courses/setup.ts (builder del feature)
+type CoursesModuleDependencies = {
+  courseRepository: CourseRepository;
+  generateId: () => string;
 };
 
+export function buildCoursesModule({
+  courseRepository,
+  generateId,
+}: CoursesModuleDependencies) {
+  return {
+    useCases: {
+      createCourse: CreateCourse({
+        courseRepository,
+        generateId,
+      }),
+    },
+  };
+}
+
+// En <source-root>/modules/setup.ts (agregador opcional)
+export function createRequestModules() {
+  const courseRepository = new CoursePostgreSQLRepository();
+
+  return {
+    courses: buildCoursesModule({
+      courseRepository,
+      generateId: () => crypto.randomUUID(),
+    }),
+  };
+}
+
 // En un entrypoint o contenedor externo
-const onCreateCourse = useCases.courses.createCourse;
+const modules = createRequestModules();
+const onCreateCourse = modules.courses.useCases.createCourse;
 
 // En la View o componente
 await onCreateCourse({
@@ -209,7 +230,7 @@ await onCreateCourse({
 * Permite dejar el núcleo funcional y reservar las clases para adapters de `infrastructure`.
 * Compatible con DI containers si la aplicación crece.
 
-`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio. En ambos casos, el composition root recomendado vive en `modules/<feature>/setup.[tj]s`; si además existe un `modules/setup.[tj]s` global, mantenelo como agregador liviano o factories lazy por feature.
+`<source-root>` es `src` si el proyecto usa `src/`; si no, es la raíz del repositorio. En ambos casos, `modules/<feature>/setup.[tj]s` queda reservado para `build<Feature>Module(deps)` y `modules/setup.[tj]s` es opcional como agregador o factories lazy por feature cuando querés centralizar wiring compartido.
 
 ### **¿Por qué usar casos de uso en lugar de servicios genéricos?**
 

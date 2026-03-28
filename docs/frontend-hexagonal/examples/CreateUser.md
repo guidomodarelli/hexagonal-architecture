@@ -201,32 +201,64 @@ export class UserRepositoryHttp implements UserRepository {
 }
 ```
 
-### Feature setup in `modules/users/setup.ts`
+### Fragmento del builder en `modules/users/setup.ts`
 
-This example assumes the alias `@/` resolves to `<source-root>`.
+Este ejemplo asume que el alias `@/` resuelve a `<source-root>`.
+Si el mismo feature también expone otros use-cases (por ejemplo `getUsers`), mantenelos en el mismo `buildUsersModule(...)`: este snippet muestra solo la parte relevante a `createUser`.
 
 ```ts
 import { CreateUser } from '@/modules/users/application/use-cases/CreateUser';
-import { createBrowserHttpClient } from '@/modules/users/infrastructure/http/BrowserHttp/createBrowserHttpClient';
-import { UserRepositoryHttp } from '@/modules/users/infrastructure/http/BrowserHttp/repositories/UserRepositoryHttp';
+import type { UserRepository } from '@/modules/users/domain/repositories/UserRepository';
 
-export function makeCreateUserHandler() {
-  const httpClient = createBrowserHttpClient('/api');
-  const userRepository = new UserRepositoryHttp(httpClient);
+type UsersModuleDependencies = {
+  userRepository: UserRepository;
+};
 
-  return CreateUser({ userRepository });
+export function buildUsersModule({ userRepository }: UsersModuleDependencies) {
+  return {
+    useCases: {
+      // Otros use-cases del feature pueden convivir acá.
+      createUser: CreateUser({ userRepository }),
+    },
+  };
 }
 ```
 
-### Usage from outer route / framework entrypoint
+### Composition root global opcional en `modules/setup.ts`
 
-This file lives outside `modules/*` (for example in `app/routes/` or `src/pages/`). It is framework-shell code, not `infrastructure`.
+```ts
+import { buildUsersModule } from '@/modules/users/setup';
+import { createBrowserHttpClient } from '@/modules/users/infrastructure/http/BrowserHttp/createBrowserHttpClient';
+import { UserRepositoryHttp } from '@/modules/users/infrastructure/http/BrowserHttp/repositories/UserRepositoryHttp';
+
+export function createRequestModules() {
+  const httpClient = createBrowserHttpClient('/api');
+
+  return {
+    users: buildUsersModule({
+      userRepository: new UserRepositoryHttp(httpClient),
+    }),
+  };
+}
+```
+
+Si la app usa code splitting por ruta, este agregador debería reservarse para boundaries que realmente compartan wiring o expongan factories lazy; una route individual normalmente compone solo el feature que necesita.
+
+### Uso desde la ruta externa o entrypoint del framework
+
+Este archivo vive fuera de `modules/*` (por ejemplo en `app/routes/` o `src/pages/`). Es código del shell del framework, no `infrastructure`.
 
 ```tsx
-import { makeCreateUserHandler } from '@/modules/users/setup';
+import { buildUsersModule } from '@/modules/users/setup';
+import { createBrowserHttpClient } from '@/modules/users/infrastructure/http/BrowserHttp/createBrowserHttpClient';
+import { UserRepositoryHttp } from '@/modules/users/infrastructure/http/BrowserHttp/repositories/UserRepositoryHttp';
 import { CreateUserView } from '@/modules/users/presentation/pages/CreateUserView';
 
-const createUser = makeCreateUserHandler();
+const httpClient = createBrowserHttpClient('/api');
+const usersModule = buildUsersModule({
+  userRepository: new UserRepositoryHttp(httpClient),
+});
+const createUser = usersModule.useCases.createUser;
 
 export function CreateUserRoute() {
   return <CreateUserView onCreate={createUser} />;
@@ -257,11 +289,11 @@ export class UserRepositoryHttp implements UserRepository {
 }
 ```
 
-## Key points
+## Puntos clave
 
-- DTOs (external) in `infrastructure/api/dto`. Internal use case inputs in `application/commands`.
-- Port in `domain/repositories`. Adapter in `infrastructure/http/BrowserHttp/repositories` (or another concrete implementation folder).
-- The use case keeps stable dependencies in the first call and runtime input in the second call.
-- The adapter can stay class-based in `infrastructure` without changing the functional shape of the use case.
-- An outer route or framework entrypoint imports from `modules/users/setup`; UI receives the composed handler by injection.
-- infrastructure can import domain and application. Application and domain don't import infrastructure.
+- Los DTOs externos viven en `infrastructure/api/dto`. Los inputs internos del caso de uso viven en `application/commands`.
+- El port vive en `domain/repositories`. El adapter vive en `infrastructure/http/BrowserHttp/repositories` o en otra carpeta de implementación concreta.
+- El caso de uso mantiene dependencias estables en la primera invocación e input de runtime en la segunda.
+- El adapter puede seguir siendo una clase en `infrastructure` sin cambiar la forma funcional del caso de uso.
+- Una ruta externa o entrypoint del framework suele componer solo el feature necesario con `buildUsersModule(...)`; `createRequestModules()` en `modules/setup` queda para wiring compartido o factories lazy. La UI recibe el caso de uso por inyección y la composición ocurre fuera del render.
+- `infrastructure` puede importar `domain` y `application`. `application` y `domain` no importan `infrastructure`.

@@ -67,10 +67,11 @@ Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo in
 - Crear **value-objects** y validadores (`CourseTitle`, `CourseDuration`, `CourseId`, `ensureCourseIsValid`).
 - Lanzar errores de dominio desde el dominio; los use-cases los coordinan y propagan. La traducción al contrato externo (HTTP/UI) ocurre en el entrypoint.
 
-#### 7. Crear `modules/<feature>/setup.[tj]s` como composition root
+#### 7. Crear `modules/<feature>/setup.[tj]s` como builder y usar `modules/setup.[tj]s` solo si conviene centralizar el wiring
 
-- Crear `<source-root>/modules/<feature>/setup.[tj]s` por feature para instanciar adapters concretos, construir use-cases curried y exportar handlers o `useCases` ya compuestos.
-- Si el framework exige un `main.ts`, `index.ts` o archivo de routing, ese entrypoint debe **consumir** solo el `setup` del feature que necesita. En apps con code splitting por ruta, cada ruta importa su propio `setup`; un `modules/setup.[tj]s` global es opcional como agregador liviano o factories lazy por feature.
+- Crear `<source-root>/modules/<feature>/setup.[tj]s` por feature para declarar `build<Feature>Module(deps)` con dependencias explícitas y devolver `useCases` ya compuestos, sin instanciar adapters concretos.
+- Si conviene centralizar dependencias compartidas, crear `<source-root>/modules/setup.[tj]s` como agregador o factories lazy por feature y exponer `createRequestModules()`.
+- Si el framework exige un `main.ts`, `index.ts` o archivo de routing, ese entrypoint puede **consumir** `createRequestModules()` o importar solo `build<Feature>Module(deps)` para componer el feature que necesita.
 - Evitar lógica de negocio y acceso directo a localStorage en el entrypoint del framework.
 
 #### 8. Escribir tests unitarios una vez aislada la lógica
@@ -86,8 +87,9 @@ Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo in
 - [ ] Interfaz `CourseRepository` y adaptación a localStorage
 - [ ] Use-cases puros con `dependency injection` por currying
 - [ ] Domain: value-objects y validadores
-- [ ] `<source-root>/modules/<feature>/setup.[tj]s` creado como composition root por feature
-- [ ] El entrypoint del framework reducido a entorno/arranque y consumo del `setup` del feature
+- [ ] `<source-root>/modules/<feature>/setup.[tj]s` creado como builder por feature con `build<Feature>Module(deps)`
+- [ ] Si hace falta wiring compartido, `<source-root>/modules/setup.[tj]s` agregado como composition root opcional
+- [ ] El entrypoint del framework reducido a entorno/arranque y composición del feature vía `createRequestModules()` o `build<Feature>Module(deps)`
 - [ ] Migración completa a TypeScript y suite de tests unitarios funcionando
 
 ---

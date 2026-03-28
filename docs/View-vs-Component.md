@@ -90,27 +90,54 @@ export function CreateCourseForm({ onCreate }: Props) {
 }
 ```
 
-## Setup mínimo del feature en `modules/courses/setup.ts`
+## Builder del feature en `modules/courses/setup.ts`
 
 ```ts
 import { CreateCourse } from '@/modules/courses/application/use-cases/CreateCourse';
-import { createBrowserHttpClient } from '@/modules/courses/infrastructure/http/BrowserHttp/createBrowserHttpClient';
-import { CourseRepositoryHttp } from '@/modules/courses/infrastructure/repositories/CourseRepositoryHttp';
+import type { CourseRepository } from '@/modules/courses/domain/repositories/CourseRepository';
 
-const generateId = () => crypto.randomUUID();
-const httpClient = createBrowserHttpClient('/api');
+type CoursesModuleDependencies = {
+  courseRepository: CourseRepository;
+  generateId: () => string;
+};
 
-export function makeCreateCourseHandler() {
-  const courseRepository = new CourseRepositoryHttp(httpClient);
-
-  return CreateCourse({
-    courseRepository,
-    generateId,
-  });
+export function buildCoursesModule({
+  courseRepository,
+  generateId,
+}: CoursesModuleDependencies) {
+  return {
+    useCases: {
+      createCourse: CreateCourse({
+        courseRepository,
+        generateId,
+      }),
+    },
+  };
 }
 ```
 
-En esta convención, el caso de uso se mantiene funcional y el adapter concreto de `infrastructure` puede ser una clase.
+En esta convención, el caso de uso se mantiene funcional y el adapter concreto de `infrastructure` puede seguir siendo una clase; la diferencia es que el feature `setup.ts` ya no instancia infraestructura, solo arma el módulo con dependencias explícitas.
+
+## Composition root opcional en `modules/setup.ts`
+
+```ts
+import { buildCoursesModule } from '@/modules/courses/setup';
+import { createBrowserHttpClient } from '@/modules/courses/infrastructure/http/BrowserHttp/createBrowserHttpClient';
+import { CourseRepositoryHttp } from '@/modules/courses/infrastructure/http/BrowserHttp/repositories/CourseRepositoryHttp';
+
+export function createRequestModules() {
+  const httpClient = createBrowserHttpClient('/api');
+
+  return {
+    courses: buildCoursesModule({
+      courseRepository: new CourseRepositoryHttp(httpClient),
+      generateId: () => crypto.randomUUID(),
+    }),
+  };
+}
+```
+
+Si la app usa code splitting por ruta, este agregador no debería ser la importación por defecto de cada route: en ese caso conviene componer solo el feature que necesita esa pantalla.
 
 ## Archivo de ruta o bootstrap del framework que inyecta el caso de uso
 
@@ -118,15 +145,24 @@ Este archivo vive fuera de `modules/*` (por ejemplo en `app/routes/` o `src/page
 
 ```tsx
 import React from 'react';
-import { makeCreateCourseHandler } from '@/modules/courses/setup';
+import { buildCoursesModule } from '@/modules/courses/setup';
+import { createBrowserHttpClient } from '@/modules/courses/infrastructure/http/BrowserHttp/createBrowserHttpClient';
+import { CourseRepositoryHttp } from '@/modules/courses/infrastructure/http/BrowserHttp/repositories/CourseRepositoryHttp';
 import { CreateCourseView } from '@/modules/courses/presentation/pages/CreateCourseView';
 
-const createCourse = makeCreateCourseHandler();
+const httpClient = createBrowserHttpClient('/api');
+const coursesModule = buildCoursesModule({
+  courseRepository: new CourseRepositoryHttp(httpClient),
+  generateId: () => crypto.randomUUID(),
+});
+const createCourse = coursesModule.useCases.createCourse;
 
 export function CreateCourseRoute() {
   return <CreateCourseView onCreate={createCourse} />;
 }
 ```
+
+En un entrypoint cliente, componé el módulo una vez fuera del render. Si necesitás scope por request en SSR, hacé la composición en el boundary del request, no dentro del componente React.
 
 ## View que recibe un caso de uso ya compuesto
 
@@ -143,4 +179,4 @@ export function CreateCourseView({ onCreate }: Props) {
 }
 ```
 
-Si preferís exponer además un `modules/setup.[tj]s` global, mantenelo como re-export o factory liviana por feature. El principio no cambia: `presentation` **recibe** la dependencia compuesta desde afuera, no crea adaptadores concretos ni importa el composition root.
+En el patrón canónico, `presentation` **recibe** la dependencia compuesta desde afuera, no crea adaptadores concretos ni importa `infrastructure`. En entrypoints por ruta conviene componer solo el feature necesario con `build<Feature>Module(...)`; `createRequestModules()` queda para boundaries que realmente comparten wiring o usan factories lazy, siempre fuera del render del componente.

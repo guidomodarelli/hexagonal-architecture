@@ -287,13 +287,14 @@ Usaremos `<source-root>` para referirnos a la carpeta base del código fuente:
 - `src` si el proyecto ya usa `src/`
 - la raíz del repositorio si el proyecto no usa `src/`
 
-Con esa convención, `modules` vive en `<source-root>/modules/`. El wiring suele vivir en `modules/<feature>/setup.[tj]s`; si tu app no depende de code splitting por ruta, también podés exponer un `modules/setup.[tj]s` global como agregador liviano o re-export por feature.
+Con esa convención, `modules` vive en `<source-root>/modules/`. Cada `modules/<feature>/setup.[tj]s` define el builder del feature (`build<Feature>Module(deps)`). El shell externo puede importar ese builder para componer solo el feature que necesita o, si conviene centralizar dependencias compartidas, exponer además un `modules/setup.[tj]s` opcional como agregador o factories lazy por feature.
 
 Un ejemplo de estructura de módulos (e.g., `courses`):
 
 ```text
 <source-root>/
   modules/
+    setup.ts (opcional)
     courses/
       setup.ts
       application/
@@ -335,14 +336,15 @@ Cada módulo puede requerir varias implementaciones concretas para un mismo puer
 
 | Carpeta / Archivo               | Responsabilidad                                                                                                                                                                |
 | :------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **modules/<feature>/setup.[tj]s** | Composition root del feature: instancia dependencias del módulo y expone factories o handlers ya compuestos. Un `modules/setup.[tj]s` global es opcional como agregador liviano. |
-| **app/routes/** o **pages/** (fuera de `modules/`) | Shell externo del framework: conecta routing/bootstrap con `presentation` y el `setup` del feature, sin meter lógica de negocio.                             |
+| **modules/setup.[tj]s** | Agregador o factory opcional: centraliza dependencias compartidas, expone `createRequestModules()` o factories lazy por feature cuando no perjudica el code splitting. |
+| **modules/<feature>/setup.[tj]s** | Builder del feature: recibe dependencias explícitas (`build<Feature>Module(deps)`) y devuelve `useCases` ya compuestos sin instanciar adaptadores concretos. |
+| **app/routes/** o **pages/** (fuera de `modules/`) | Shell externo del framework: conecta routing/bootstrap con `presentation` y, en entrypoints por ruta, suele componer solo el feature que necesita con `build<Feature>Module(...)`. `createRequestModules()` queda para wiring compartido o factories lazy, sin meter lógica de negocio.                             |
 | **application/use-cases/**      | Casos de uso puros; funciones que orquestan la lógica de negocio usando interfaces (repositorios).                                                                             |
 | **domain/entities/**            | Modelos inmutables y estructuras centrales del dominio (sin dependencias de infraestructura).                                                                                  |
 | **domain/repositories/**        | Contratos (interfaces) que definen cómo acceder a datos; puertos de la arquitectura.                                                                                           |
 | **domain/value-objects/**       | Validaciones y reglas encapsuladas en tipos semánticos (ej: `CourseId`, `CourseTitle`, `CourseDuration`).                                                                      |
 | **infrastructure/**             | Implementaciones concretas de repositorios y adaptadores de I/O (REST, GraphQL, localStorage, etc.); adaptadores de la arquitectura.                                           |
-| **presentation/pages/ (Views)** | Punto de entrada a nivel de ruta/pantalla, orquesta la UI, compone componentes y consume casos de uso o handlers ya compuestos, sin lógica de dominio.                          |
+| **presentation/pages/ (Views)** | Punto de entrada a nivel de ruta/pantalla, orquesta la UI, compone componentes y consume casos de uso ya compuestos, sin lógica de dominio.                          |
 | **presentation/components/**    | Piezas de UI reutilizables con estado/efectos de presentación y validaciones de UI. Pueden invocar casos de uso a través de *props* o *hooks*; no contienen lógica de dominio. |
 
 > **Regla clave:** La capa de presentación **consume** casos de uso; la aplicación **depende** de interfaces del dominio; la infraestructura **implementa** esas interfaces o conecta adaptadores de entrada. El dominio nunca importa de infraestructura ni de presentación.
@@ -357,11 +359,11 @@ View (Page) --> Component --> Use Case --> Repository <--- Impl Repository
 
 #### ✨ Buenas Prácticas Clave
 
-* **Inyección de dependencias:** En frontend preferimos casos de uso funcionales con currying (`createCourse(deps)(input)`). Los adaptadores concretos pueden ser clases en `infrastructure`; el `setup` del feature hace el wiring entre ambos.
+* **Inyección de dependencias:** En frontend preferimos casos de uso funcionales con currying (`createCourse(deps)(input)`). Los adaptadores concretos pueden ser clases en `infrastructure`; podés instanciarlos en un entrypoint que componga solo un feature o centralizarlos en un `modules/setup.[tj]s` opcional.
 * **Validaciones en Domain:** Mantener las validaciones en la capa de **Domain** (e.g., *value-objects*), permitiendo su reutilización tanto en casos de uso como en la UI para feedback inmediato.
 * **Traducción en Infrastructure:** Los adaptadores de **Infrastructure** deben traducir DTOs externos a entidades de dominio y viceversa, aislando el dominio de cambios en APIs externas.
 * **Presentation como orquestadora:** La capa de **Presentation** solo orquesta la interacción del usuario y muestra errores/validaciones provistas por Domain/Application, sin contener lógica de negocio.
-* **Composition root por feature dentro de `modules/`:** Ubicar el wiring en `modules/<feature>/setup.[tj]s`. Si además exponés `modules/setup.[tj]s`, mantenelo como re-export o factory liviana para no cargar adaptadores de features no usados en apps con code splitting por ruta.
+* **Builder por feature dentro de `modules/`:** Usar `modules/<feature>/setup.[tj]s` para declarar `build<Feature>Module(deps)`. Si conviene centralizar wiring compartido, agregá un `modules/setup.[tj]s` opcional; si la app necesita code splitting por ruta, el entrypoint puede importar solo el builder del feature que usa.
 * **Casos de uso para operaciones complejas:** Evitar lógica de negocio compleja en componentes de UI; delegar operaciones complejas a casos de uso bien definidos.
 * **Hooks personalizados:** Usar hooks personalizados (en React) para encapsular lógica de presentación reutilizable (estado de formularios, manejo de errores de UI, efectos visuales), manteniendo los componentes limpios.
 * **Dirección de dependencias:** `presentation` depende de `application` y puede reutilizar piezas puras de `domain`; `infrastructure` depende de `application` y/o `domain`; el núcleo nunca importa de capas externas.
@@ -383,7 +385,7 @@ Podríamos considerarla infraestructura, ya que el framework es una dependencia 
 
 Por ello, tratamos **Presentation** como una capa independiente con responsabilidades claras:
 
-* **Pages (Views):** Punto de entrada de pantallas dentro del módulo, orquesta componentes, maneja navegación y recibe casos de uso o handlers ya compuestos desde un archivo de ruta/bootstrap del framework que importa el `setup` del feature. Sin lógica de dominio.
+* **Pages (Views):** Punto de entrada de pantallas dentro del módulo, orquesta componentes, maneja navegación y recibe casos de uso ya compuestos desde un archivo de ruta/bootstrap del framework. En entrypoints por ruta conviene componer solo el feature necesario; `createRequestModules()` queda para wiring compartido o factories lazy. Sin lógica de dominio.
 * **Components:** Piezas de UI reutilizables con estado/efectos de presentación. Invocan casos de uso a través de *props* o *hooks*; no contienen lógica de dominio.
 * **Hooks personalizados:** Encapsulan lógica de presentación reutilizable (gestión de formularios, estados de carga, efectos visuales).
 
