@@ -78,16 +78,19 @@ La regla sigue siendo la misma: el adaptador puede mapear desde DTOs externos, p
 El adaptador importa modelos internos (`domain` o `application`), nunca al revés. Mapea DTO externo → entidad o DTO interno.
 
 ```ts
-// infrastructure/repositories/UserRepositoryFetch.ts
+// infrastructure/repositories/UserRepositoryHttp.ts
 import { UserRepository } from '../../domain/repositories/UserRepository';
 import { User } from '../../domain/User';
 import { Email } from '../../domain/Email';
+import { HttpClient } from '../../application/ports/HttpClient';
 import { getUsers } from '../api/getUsers';
 
-export class UserRepositoryFetch implements UserRepository {
+export class UserRepositoryHttp implements UserRepository {
+  constructor(private readonly http: HttpClient) {}
+
   async findAll(): Promise<User[]> {
-    const dtos = await getUsers();
-    return dtos.map(dto => new User(dto.id, dto.name, new Email(dto.email)));
+    const response = await getUsers(this.http, {});
+    return response.items.map(dto => new User(dto.id, dto.name, new Email(dto.email)));
   }
 
   // ... resto de métodos

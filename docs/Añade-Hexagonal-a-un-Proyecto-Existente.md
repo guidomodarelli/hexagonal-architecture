@@ -60,7 +60,7 @@ export const CreateCourse =
   };
 ```
 
-Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo invoca estos use-cases. Los adapters concretos de `infrastructure` pueden ser clases (`LocalStorageCourseRepository`, `CourseRepositoryFetch`, etc.) y se instancian desde `setup.[tj]s`.
+Mantener la orquestación y la lógica de negocio en `use-cases`; la UI sólo invoca estos use-cases. Los adapters concretos de `infrastructure` pueden ser clases (`LocalStorageCourseRepository`, `CourseRepositoryHttp`, etc.) y se instancian desde `setup.[tj]s`.
 
 #### 6. Mover reglas de negocio al dominio
 

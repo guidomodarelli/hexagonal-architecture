@@ -216,39 +216,130 @@ import {
   SearchResult,
 } from '../../domain/repositories/SearchRepository';
 
-type Http = (url: string, init: RequestInit) => Promise<Response>;
+type HttpHeaders = Record<string, string>;
+
+type HttpRequestConfig = {
+  headers?: HttpHeaders;
+  timeoutMs?: number;
+};
+
+type HttpResponse<T> = {
+  status: number;
+  headers: HttpHeaders;
+  data: T;
+};
+
+class HttpError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly meta?: {
+      method: string;
+      url: string;
+      status?: number;
+      cause?: unknown;
+    }
+  ) {
+    super(message);
+  }
+}
+
+class HttpTimeoutError extends HttpError {
+  constructor(meta: { method: string; url: string; cause?: unknown }) {
+    super('Request timed out', 'HTTP_TIMEOUT', meta);
+  }
+}
+
+class HttpNetworkError extends HttpError {
+  constructor(meta: { method: string; url: string; cause?: unknown }) {
+    super('Network request failed', 'HTTP_NETWORK', meta);
+  }
+}
+
+class HttpUnauthorizedError extends HttpError {
+  constructor(meta: { method: string; url: string; status: number }) {
+    super('Remote service rejected authentication', 'HTTP_UNAUTHORIZED', meta);
+  }
+}
+
+class HttpForbiddenError extends HttpError {
+  constructor(meta: { method: string; url: string; status: number }) {
+    super('Remote service rejected authorization', 'HTTP_FORBIDDEN', meta);
+  }
+}
+
+class HttpServerError extends HttpError {
+  constructor(meta: { method: string; url: string; status: number }) {
+    super(`Remote service failed with status ${meta.status}`, 'HTTP_SERVER_ERROR', meta);
+  }
+}
+
+interface HttpClient {
+  post<TResponse>(
+    url: string,
+    body?: unknown,
+    config?: HttpRequestConfig
+  ): Promise<HttpResponse<TResponse>>;
+}
+
+type OpenSearchSearchResponseDto = {
+  hits?: {
+    hits?: Array<{ _id: string; _source: unknown }>;
+  };
+};
 
 export class OpenSearchSearchRepository implements SearchRepository {
   constructor(
-    private readonly http: Http,
-    private readonly baseUrl: string,
+    private readonly http: HttpClient,
+    private readonly basePath: string,
     private readonly authHeader?: string
   ) {}
 
   async search(params: { index: string; query: unknown }): Promise<SearchResult[]> {
     const { index, query } = params;
+    const url = `${this.basePath}/${encodeURIComponent(index)}/_search`;
 
-    const res = await this.http(
-      `${this.baseUrl}/${encodeURIComponent(index)}/_search`,
-      {
-        method: 'POST',
+    try {
+      const res = await this.http.post<OpenSearchSearchResponseDto>(url, query, {
         headers: {
           'Content-Type': 'application/json',
           ...(this.authHeader ? { Authorization: this.authHeader } : {}),
         },
-        body: JSON.stringify(query),
+      });
+
+      if (res.status === 403) {
+        throw new SearchRepositoryPermissionError(index);
       }
-    ).catch((e) => {
-      throw new SearchRepositoryUnavailableError(String(e?.message ?? e));
-    });
 
-    if (res.status === 403) throw new SearchRepositoryPermissionError(index);
-    if (res.status >= 500) throw new SearchRepositoryUnavailableError(`OpenSearch ${res.status}`);
-    if (!res.ok) throw new SearchRepositoryError(`OpenSearch ${res.status}`);
+      if (res.status >= 500) {
+        throw new SearchRepositoryUnavailableError(`OpenSearch ${res.status}`);
+      }
 
-    const data = await res.json();
-    const hits = data?.hits?.hits ?? [];
-    return hits.map((h: any) => ({ id: h._id, source: h._source })) as SearchResult[];
+      if (res.status < 200 || res.status >= 300) {
+        throw new SearchRepositoryError(`OpenSearch ${res.status}`);
+      }
+
+      const hits = res.data?.hits?.hits ?? [];
+      return hits.map((h) => ({ id: h._id, source: h._source })) as SearchResult[];
+    } catch (error) {
+      if (error instanceof HttpForbiddenError) {
+        throw new SearchRepositoryPermissionError(index);
+      }
+
+      if (
+        error instanceof HttpTimeoutError ||
+        error instanceof HttpNetworkError ||
+        error instanceof HttpServerError
+      ) {
+        throw new SearchRepositoryUnavailableError(error.message);
+      }
+
+      if (error instanceof HttpUnauthorizedError || error instanceof HttpError) {
+        throw new SearchRepositoryError(error.message);
+      }
+
+      throw error;
+    }
   }
 }
 ```

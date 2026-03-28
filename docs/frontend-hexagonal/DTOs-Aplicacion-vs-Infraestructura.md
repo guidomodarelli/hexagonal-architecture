@@ -9,7 +9,7 @@ La clave no es tanto **entrada vs salida**, sino **adentro vs afuera** de tu hex
 - DTO interno (aplicación/dominio) → contrato estable definido por tu negocio.
 - DTO externo (infraestructura) → contrato variable definido por APIs/DB/clientes.
 
-Idealmente, un cambio en la infraestructura (pasar de REST a gRPC, de Axios a Fetch, de PostgreSQL a Mongo, de una API externa a otra) no debería obligarte a cambiar tus DTO internos, solo los externos y sus mapeos.
+Idealmente, un cambio en la infraestructura (pasar de REST a gRPC, de un cliente HTTP a otro, de PostgreSQL a Mongo, de una API externa a otra) no debería obligarte a cambiar tus DTO internos, solo los externos y sus mapeos.
 
 ---
 

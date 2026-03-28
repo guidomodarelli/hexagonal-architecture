@@ -22,6 +22,8 @@ Read use case with application-level filtering and external DTOs in infrastructu
 │   │   └── GetUsers.ts
 │   ├── queries/
 │   │   └── UserFilterInput.ts
+│   └── ports/
+│       └── HttpClient.ts
 └── infrastructure/
   ├── api/
   │   ├── getUsers.ts
@@ -29,8 +31,11 @@ Read use case with application-level filtering and external DTOs in infrastructu
   │       ├── UserDto.ts
   │       ├── GetUsersResponseDto.ts
   │       └── mapper.ts
-  └── repositories/
-    └── UserRepositoryFetch.ts
+  ├── http/
+  │   └── BrowserHttp/
+  │       ├── createBrowserHttpClient.ts
+  │       └── repositories/
+  │           └── UserRepositoryHttp.ts
 ```
 
 ## Code
@@ -94,6 +99,28 @@ export const GetUsers =
   };
 ```
 
+### application/ports/HttpClient.ts
+
+```ts
+export type HttpRequestConfig = {
+  headers?: Record<string, string>;
+  query?: Record<string, string | number | boolean | undefined>;
+  timeoutMs?: number;
+};
+
+export type HttpResponse<T> = {
+  status: number;
+  data: T;
+};
+
+export interface HttpClient {
+  // Resolves with { status, data } for any HTTP response, including 4xx/5xx.
+  // Rejects only for transport-level failures such as network loss, timeout, or abort.
+  get<T>(url: string, config?: HttpRequestConfig): Promise<HttpResponse<T>>;
+  post<T>(url: string, body?: unknown, config?: HttpRequestConfig): Promise<HttpResponse<T>>;
+}
+```
+
 ### infrastructure/api/dto/UserDto.ts
 
 ```ts
@@ -130,36 +157,48 @@ export function dtoToUser(dto: UserDto): User {
 ### infrastructure/api/getUsers.ts
 
 ```ts
+import { HttpClient } from '../../application/ports/HttpClient';
 import { GetUsersResponseDto } from './dto/GetUsersResponseDto';
 
-export async function getUsers(params: { query?: string; page?: number; limit?: number }): Promise<GetUsersResponseDto> {
-  const url = new URL('/api/users', window.location.origin);
-  if (params.query) url.searchParams.set('q', params.query);
-  if (params.page) url.searchParams.set('page', String(params.page));
-  if (params.limit) url.searchParams.set('limit', String(params.limit));
+export async function getUsers(
+  http: HttpClient,
+  params: { query?: string; page?: number; limit?: number }
+): Promise<GetUsersResponseDto> {
+  const response = await http.get<GetUsersResponseDto>('/users', {
+    query: {
+      q: params.query,
+      page: params.page,
+      limit: params.limit,
+    },
+  });
 
-  const res = await fetch(url.toString(), { method: 'GET' });
-  if (!res.ok) throw new Error('Could not fetch users');
-  return res.json();
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`Could not fetch users: HTTP ${response.status}`);
+  }
+
+  return response.data;
 }
 ```
 
-### infrastructure/repositories/UserRepositoryFetch.ts (Adapter)
+### infrastructure/http/BrowserHttp/repositories/UserRepositoryHttp.ts (Adapter)
 
 ```ts
-import { UserRepository } from '../../domain/repositories/UserRepository';
-import { User } from '../../domain/User';
-import { dtoToUser } from '../api/dto/mapper';
-import { getUsers } from '../api/getUsers';
+import { UserRepository } from '../../../../domain/repositories/UserRepository';
+import { User } from '../../../../domain/User';
+import { HttpClient } from '../../../../application/ports/HttpClient';
+import { dtoToUser } from '../../../api/dto/mapper';
+import { getUsers } from '../../../api/getUsers';
 
-export class UserRepositoryFetch implements UserRepository {
+export class UserRepositoryHttp implements UserRepository {
+  constructor(private readonly http: HttpClient) {}
+
   async create(_name: string, _email: string): Promise<User> {
     throw new Error('create() is covered in the CreateUser example');
   }
 
   async search(params: { query?: string; page?: number; limit?: number }) {
-  const resp = await getUsers(params);
-  return { items: resp.items.map(dtoToUser), total: resp.total };
+    const resp = await getUsers(this.http, params);
+    return { items: resp.items.map(dtoToUser), total: resp.total };
   }
 }
 ```
@@ -170,10 +209,12 @@ This example assumes the alias `@/` resolves to `<source-root>`.
 
 ```ts
 import { GetUsers } from '@/modules/users/application/use-cases/GetUsers';
-import { UserRepositoryFetch } from '@/modules/users/infrastructure/repositories/UserRepositoryFetch';
+import { createBrowserHttpClient } from '@/modules/users/infrastructure/http/BrowserHttp/createBrowserHttpClient';
+import { UserRepositoryHttp } from '@/modules/users/infrastructure/http/BrowserHttp/repositories/UserRepositoryHttp';
 
 export function makeGetUsersHandler() {
-  const userRepository = new UserRepositoryFetch();
+  const httpClient = createBrowserHttpClient('/api');
+  const userRepository = new UserRepositoryHttp(httpClient);
 
   return GetUsers({ userRepository });
 }

@@ -250,7 +250,7 @@ export const CreateCourse =
   };
 ```
 
-La capa `infrastructure` no necesita seguir ese mismo estilo. En adapters concretos suele ser más claro usar **clases** como `CourseRepositoryFetch`, `CourseRepositoryPostgreSQL` o `LocalStorageCourseRepository`, especialmente cuando encapsulan clientes externos, configuración técnica o parámetros de constructor.
+La capa `infrastructure` no necesita seguir ese mismo estilo. En adapters concretos suele ser más claro usar **clases** como `CourseRepositoryHttp`, `CourseRepositoryPostgreSQL` o `LocalStorageCourseRepository`, especialmente cuando encapsulan clientes externos, configuración técnica o parámetros de constructor.
 
 -----
 
@@ -329,7 +329,7 @@ Un ejemplo de estructura de módulos (e.g., `courses`):
 
 #### Infraestructura con múltiples implementaciones
 
-Cada módulo puede requerir varias implementaciones concretas para un mismo puerto (HTTP, persistence, message brokers, email, etc.). Organiza esas implementaciones dentro de `infrastructure/<category>` creando una carpeta por tecnología (`Axios/`, `Fetch/`, `PostgreSQL/`, `Kafka/`, ...). Cada carpeta encapsula configuraciones, clientes e implementaciones de repositorios, mientras que los DTOs externos y su `mapper` permanecen en `infrastructure/api/dto`. Consulta `docs/frontend-hexagonal/Organizacion-Infraestructura-Implementaciones.md` para ver la estructura sugerida y ejemplos representativos; el mismo criterio aplica para `Fetch`, `MySQL`, `RabbitMQ` y adaptadores de email.
+Cada módulo puede requerir varias implementaciones concretas para un mismo puerto (HTTP, persistence, message brokers, email, etc.). Organiza esas implementaciones dentro de `infrastructure/<category>` creando una carpeta por implementación o proveedor (`BrowserHttp/`, `RetryingHttp/`, `PostgreSQL/`, `Kafka/`, ...). Cada carpeta encapsula configuraciones, clientes e implementaciones de repositorios, mientras que los DTOs externos y su `mapper` permanecen en `infrastructure/api/dto`. Consulta `docs/frontend-hexagonal/Organizacion-Infraestructura-Implementaciones.md` para ver la estructura sugerida y ejemplos representativos; el mismo criterio aplica para otros clientes HTTP, `MySQL`, `RabbitMQ` y adaptadores de email.
 
 ### 📂 Resumen rápido (qué hace cada carpeta)
 

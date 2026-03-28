@@ -1,10 +1,10 @@
 # Organización de la infraestructura por implementación concreta
 
-La capa de infraestructura aloja adaptadores para HTTP, persistencia, message brokers, email providers y cualquier otro mecanismo externo que implemente puertos definidos en `domain/repositories` y, cuando haga falta, contratos internos en `application/ports`. Cada puerto puede tener múltiples implementaciones concretas (Axios, Fetch, PostgreSQL, MySQL, RabbitMQ, Kafka, Gmail, etc.), por lo que conviene aislar cada tecnología en su propia carpeta para facilitar el reemplazo sin tocar aplicación ni dominio.
+La capa de infraestructura aloja adaptadores para HTTP, persistencia, message brokers, email providers y cualquier otro mecanismo externo que implemente puertos definidos en `domain/repositories` y, cuando haga falta, contratos internos en `application/ports`. Cada puerto puede tener múltiples implementaciones concretas (cliente HTTP del navegador, cliente HTTP resiliente, PostgreSQL, MySQL, RabbitMQ, Kafka, Gmail, etc.), por lo que conviene aislar cada implementación en su propia carpeta para facilitar el reemplazo sin tocar aplicación ni dominio.
 
 ## Objetivos
 
-- Encapsular configuraciones, clientes y repositorios concretos por tecnología (`Axios`, `PostgreSQL`, `Kafka`, …).
+- Encapsular configuraciones, clientes y repositorios concretos por implementación (`BrowserHttp`, `PostgreSQL`, `Kafka`, …).
 - Compartir DTOs y mapeos desde `infrastructure/api/dto` para evitar duplicaciones.
 - Hacer explícita la relación *puerto → adaptador* sin mezclar dependencias entre tecnologías.
 
@@ -15,11 +15,11 @@ La capa de infraestructura aloja adaptadores para HTTP, persistencia, message br
 ```text
 <source-root>/modules/<feature>/infrastructure/
   http/
-    Axios/
+    BrowserHttp/
       client/
       repositories/
       tests/
-    Fetch/
+    RetryingHttp/
       client/
       repositories/
   persistence/
@@ -46,7 +46,7 @@ La capa de infraestructura aloja adaptadores para HTTP, persistencia, message br
 ```
 
 - Cada carpeta de primer nivel (`http`, `persistence`, `message-broker`, `email`, etc.) agrupa implementaciones de un tipo de infraestructura.
-- Dentro de cada tipo, crea carpetas por tecnología concreta (`Axios`, `PostgreSQL`, `Kafka`, …) que contengan clientes, helpers y repositorios específicos.
+- Dentro de cada tipo, crea carpetas por implementación concreta (`BrowserHttp`, `PostgreSQL`, `Kafka`, …) que contengan clientes, helpers y repositorios específicos.
 - Los DTOs externos y sus mapeos viven en `infrastructure/api/dto` sin importar la tecnología consumida.
 
 ## Contratos y adaptadores
@@ -55,7 +55,7 @@ No todo contrato técnico debe subir al dominio.
 
 - Los **puertos de negocio** viven en `domain/repositories` o `domain/services` cuando expresan lenguaje del negocio.
 - Los **contratos internos de aplicación** viven en `application/ports` cuando coordinan un caso de uso pero no forman parte del lenguaje ubicuo.
-- Los **clientes técnicos de bajo nivel** (`axios.create()`, pools de base de datos, SDK wrappers genéricos) pueden quedarse como detalle privado de `infrastructure`.
+- Los **clientes técnicos de bajo nivel** (factories HTTP, pools de base de datos, SDK wrappers genéricos) pueden quedarse como detalle privado de `infrastructure`.
 
 Ejemplos:
 
@@ -74,13 +74,30 @@ export interface UserEventsPublisher {
 ```
 
 ```ts
-// <source-root>/modules/users/infrastructure/http/Axios/client/createAxiosClient.ts
-import axios, { AxiosInstance } from 'axios';
+// <source-root>/modules/users/infrastructure/http/BrowserHttp/client/createHttpClient.ts
+import { HttpClient, HttpRequestConfig, HttpResponse } from '../../../../application/ports/HttpClient';
 
-export function createAxiosClient(baseUrl: string): AxiosInstance {
-  return axios.create({ baseURL: baseUrl });
+type BrowserRequest = <T>(
+  method: 'GET' | 'POST',
+  url: string,
+  config?: HttpRequestConfig,
+  body?: unknown
+) => Promise<HttpResponse<T>>;
+
+export function createHttpClient(
+  baseUrl: string,
+  request: BrowserRequest
+): HttpClient {
+  return {
+    get: <T>(url: string, config?: HttpRequestConfig) =>
+      request<T>('GET', `${baseUrl}${url}`, config),
+    post: <T>(url: string, body?: unknown, config?: HttpRequestConfig) =>
+      request<T>('POST', `${baseUrl}${url}`, config, body),
+  };
 }
 ```
+
+Desde el composition root normalmente consumís una factory más específica del runtime, por ejemplo `createBrowserHttpClient(baseUrl)`, que encapsula el `request` basado en `fetch` y delega a `createHttpClient(baseUrl, request)`.
 
 Cada implementación concreta se aloja en su carpeta correspondiente:
 
@@ -118,7 +135,7 @@ export class KafkaUserEventsPublisher implements UserEventsPublisher {
 }
 ```
 
-Cambiar de tecnología solo implica inyectar otra implementación (`Fetch`, `MySQL`, `RabbitMQ`, etc.) manteniendo intacto el contrato expuesto al núcleo.
+Cambiar de tecnología solo implica inyectar otra implementación (otro cliente HTTP, `MySQL`, `RabbitMQ`, etc.) manteniendo intacto el contrato expuesto al núcleo.
 
 ## DTOs siempre centralizados
 
@@ -129,7 +146,7 @@ La clave acá no es **entrada vs salida**, sino **adentro vs afuera** del hexág
 
 En esta organización:
 
-- Los **DTO externos** (requests/responses HTTP, filas de base de datos, payloads de message brokers, SDKs de terceros) viven en `<source-root>/modules/<feature>/infrastructure/api/dto` y se traducen mediante un `mapper.ts`. Estas definiciones representan la forma con la que los servicios externos hablan con nosotros y no deben duplicarse en cada carpeta tecnológica (`Axios`, `Fetch`, `PostgreSQL`, etc.).
+- Los **DTO externos** (requests/responses HTTP, filas de base de datos, payloads de message brokers, SDKs de terceros) viven en `<source-root>/modules/<feature>/infrastructure/api/dto` y se traducen mediante un `mapper.ts`. Estas definiciones representan la forma con la que los servicios externos hablan con nosotros y no deben duplicarse en cada carpeta tecnológica (`BrowserHttp`, `RetryingHttp`, `PostgreSQL`, etc.).
 - Los **DTO internos** de la aplicación (por ejemplo, `CreateUserInput`, `GetUsersQuery`, `UserListResult`) viven en `<source-root>/modules/<feature>/application` (`commands`, `queries`, `results`) y son los que querés usar dentro del hexágono de punta a punta, independientemente de si afuera usás REST, gRPC, PostgreSQL, Mongo, etc.
 
 Los repositorios y adaptadores de la capa `infrastructure` toman los DTO externos desde `infrastructure/api/dto`, los convierten a entidades de `domain` o a DTO internos, y solo exponen al resto de la aplicación modelos propios del núcleo (`domain` + `application`), nunca formatos crudos de `infrastructure`.

@@ -94,12 +94,14 @@ export function CreateCourseForm({ onCreate }: Props) {
 
 ```ts
 import { CreateCourse } from '@/modules/courses/application/use-cases/CreateCourse';
-import { CourseRepositoryFetch } from '@/modules/courses/infrastructure/repositories/CourseRepositoryFetch';
+import { createBrowserHttpClient } from '@/modules/courses/infrastructure/http/BrowserHttp/createBrowserHttpClient';
+import { CourseRepositoryHttp } from '@/modules/courses/infrastructure/repositories/CourseRepositoryHttp';
 
 const generateId = () => crypto.randomUUID();
+const httpClient = createBrowserHttpClient('/api');
 
 export function makeCreateCourseHandler() {
-  const courseRepository = new CourseRepositoryFetch(fetch, '/api');
+  const courseRepository = new CourseRepositoryHttp(httpClient);
 
   return CreateCourse({
     courseRepository,

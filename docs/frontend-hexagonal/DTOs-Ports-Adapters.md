@@ -60,7 +60,7 @@ Más detalle en: `docs/Reglas-de-Dependencias.md`.
 
 - `domain/repositories`: interfaces que expresan lo que la app necesita. Ej.: `UserRepository`.
 - `application/ports`: contratos internos de orquestación o integraciones que no forman parte del lenguaje del dominio. Ej.: `Clock`, `IdGenerator`, `EventPublisher`.
-- `infrastructure/repositories`: adaptadores que implementan puertos. Ej.: `UserRepositoryFetch`.
+- `infrastructure/<tipo>/<Implementacion>/repositories`: adaptadores que implementan puertos. Ej.: `http/BrowserHttp/repositories/UserRepositoryHttp`.
 - `infrastructure/api`: funciones que hablan con el exterior (HTTP/SDK). Ej.: `createUser()`.
 - `infrastructure/api/dto`: formas de datos **externas**. Ej.: `UserDto`, `CreateUserDto`.
 - `infrastructure/api/dto/mapper.ts`: transforma DTO ↔ entidades del `domain`.
@@ -108,7 +108,7 @@ Sí. Las capas externas pueden depender de las internas. Es correcto que un repo
 - Separar (recomendado) cuando querés:
   - Testear la llamada HTTP de forma aislada.
   - Reutilizar la función desde otros adaptadores (SSR, jobs, etc.).
-  - Cambiar cliente (fetch/axios/SDK) sin tocar el repository.
+  - Cambiar implementación del cliente HTTP o SDK sin tocar el repository.
 - Integrar en el repo (válido) si buscás máxima simplicidad y no hay reutilización.
 
 Patrón recomendado (separado):
@@ -116,7 +116,7 @@ Patrón recomendado (separado):
 ```
 infrastructure/api/createUser.ts   # hace la request
 infrastructure/api/dto/mapper.ts   # mapea DTO → domain
-infrastructure/repositories/...    # implementa el puerto usando lo anterior
+infrastructure/http/BrowserHttp/repositories/...    # implementa el puerto usando lo anterior
 ```
 
 ---
@@ -124,7 +124,7 @@ infrastructure/repositories/...    # implementa el puerto usando lo anterior
 ## Convenciones de nombres
 
 - Puerto: `UserRepository` (`domain/repositories`)
-- Adaptador: `UserRepositoryFetch` (`infrastructure/repositories`)
+- Adaptador: `UserRepositoryHttp` (`infrastructure/http/BrowserHttp/repositories`)
 - DTOs: `UserDto`, `CreateUserDto` (`infrastructure/api/dto`)
 - Mapper: `dtoToUser`, `userToDto` (`infrastructure/api/dto/mapper.ts`)
 - Comando de caso de uso: `CreateUserInput` (`application/commands`)
@@ -135,7 +135,7 @@ infrastructure/repositories/...    # implementa el puerto usando lo anterior
 
 - Domain: unit tests puros de entidades/VO.
 - Application: unit tests de casos de uso con dobles de puertos (mocks/stubs).
-- Infrastructure: tests de integración de adaptadores (mapeos y llamadas reales o simuladas a `fetch`).
+- Infrastructure: tests de integración de adaptadores (mapeos y llamadas reales o simuladas al cliente HTTP).
 
 ---
 
@@ -143,7 +143,7 @@ infrastructure/repositories/...    # implementa el puerto usando lo anterior
 
 - Importar DTOs de `infrastructure` desde `application` o `domain`.
 - Reutilizar un `User` genérico en `shared` para todos los contextos (termina con muchos opcionales y invariantes débiles).
-- Hacer que `domain` conozca `fetch`, `axios`, `localStorage` o el formato JSON externo.
+- Hacer que `domain` conozca el cliente HTTP concreto, `localStorage` o el formato JSON externo.
 - Poner interfaces técnicas genéricas en `domain` (`HttpClient`, `DatabaseClient`, `MessageBrokerClient`) cuando no representan una capacidad del negocio.
 
 ---

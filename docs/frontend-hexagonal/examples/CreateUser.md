@@ -22,6 +22,8 @@ Realistic example with modules, ports, adapters (repository), DTOs and mappers.
 │   │   └── CreateUser.ts
 │   ├── commands/
 │   │   └── CreateUserInput.ts
+│   └── ports/
+│       └── HttpClient.ts
 └── infrastructure/
   ├── api/
   │   ├── createUser.ts
@@ -29,8 +31,11 @@ Realistic example with modules, ports, adapters (repository), DTOs and mappers.
   │       ├── CreateUserDto.ts
   │       ├── UserDto.ts
   │       └── mapper.ts
-  └── repositories/
-    └── UserRepositoryFetch.ts
+  ├── http/
+  │   └── BrowserHttp/
+  │       ├── createBrowserHttpClient.ts
+  │       └── repositories/
+  │           └── UserRepositoryHttp.ts
 ```
 
 ## Code
@@ -101,6 +106,28 @@ export const CreateUser =
   };
 ```
 
+### application/ports/HttpClient.ts
+
+```ts
+export type HttpRequestConfig = {
+  headers?: Record<string, string>;
+  query?: Record<string, string | number | boolean | undefined>;
+  timeoutMs?: number;
+};
+
+export type HttpResponse<T> = {
+  status: number;
+  data: T;
+};
+
+export interface HttpClient {
+  // Resolves with { status, data } for any HTTP response, including 4xx/5xx.
+  // Rejects only for transport-level failures such as network loss, timeout, or abort.
+  get<T>(url: string, config?: HttpRequestConfig): Promise<HttpResponse<T>>;
+  post<T>(url: string, body?: unknown, config?: HttpRequestConfig): Promise<HttpResponse<T>>;
+}
+```
+
 ### infrastructure/api/dto/CreateUserDto.ts
 
 ```ts
@@ -135,32 +162,41 @@ export function dtoToUser(dto: UserDto): User {
 ### infrastructure/api/createUser.ts
 
 ```ts
+import { HttpClient } from '../../application/ports/HttpClient';
 import { CreateUserDto } from './dto/CreateUserDto';
 import { UserDto } from './dto/UserDto';
 
-export async function createUser(dto: CreateUserDto): Promise<UserDto> {
-  const res = await fetch('/api/users', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(dto),
+export async function createUser(
+  http: HttpClient,
+  dto: CreateUserDto
+): Promise<UserDto> {
+  const response = await http.post<UserDto>('/users', dto, {
+    headers: { 'Content-Type': 'application/json' },
   });
-  if (!res.ok) throw new Error('Could not create user');
-  return res.json();
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`Could not create user: HTTP ${response.status}`);
+  }
+
+  return response.data;
 }
 ```
 
-### infrastructure/repositories/UserRepositoryFetch.ts (Adapter)
+### infrastructure/http/BrowserHttp/repositories/UserRepositoryHttp.ts (Adapter)
 
 ```ts
-import { UserRepository } from '../../domain/repositories/UserRepository';
-import { User } from '../../domain/User';
-import { createUser } from '../api/createUser';
-import { dtoToUser } from '../api/dto/mapper';
+import { UserRepository } from '../../../../domain/repositories/UserRepository';
+import { User } from '../../../../domain/User';
+import { HttpClient } from '../../../../application/ports/HttpClient';
+import { createUser } from '../../../api/createUser';
+import { dtoToUser } from '../../../api/dto/mapper';
 
-export class UserRepositoryFetch implements UserRepository {
+export class UserRepositoryHttp implements UserRepository {
+  constructor(private readonly http: HttpClient) {}
+
   async create(name: string, email: string): Promise<User> {
-  const userDto = await createUser({ name, email });
-  return dtoToUser(userDto);
+    const userDto = await createUser(this.http, { name, email });
+    return dtoToUser(userDto);
   }
 }
 ```
@@ -171,10 +207,12 @@ This example assumes the alias `@/` resolves to `<source-root>`.
 
 ```ts
 import { CreateUser } from '@/modules/users/application/use-cases/CreateUser';
-import { UserRepositoryFetch } from '@/modules/users/infrastructure/repositories/UserRepositoryFetch';
+import { createBrowserHttpClient } from '@/modules/users/infrastructure/http/BrowserHttp/createBrowserHttpClient';
+import { UserRepositoryHttp } from '@/modules/users/infrastructure/http/BrowserHttp/repositories/UserRepositoryHttp';
 
 export function makeCreateUserHandler() {
-  const userRepository = new UserRepositoryFetch();
+  const httpClient = createBrowserHttpClient('/api');
+  const userRepository = new UserRepositoryHttp(httpClient);
 
   return CreateUser({ userRepository });
 }
@@ -197,15 +235,24 @@ export function CreateUserRoute() {
 
 ## Minimalist variant (without separate `api/`)
 
-Moving the `fetch` call directly into the repo is valid if you don't need to reuse or test it separately.
+Moving the HTTP call directly into the repo is valid if you don't need to reuse or test it separately.
 
 ```ts
-export class UserRepositoryFetch implements UserRepository {
+export class UserRepositoryHttp implements UserRepository {
+  constructor(private readonly http: HttpClient) {}
+
   async create(name: string, email: string): Promise<User> {
-  const res = await fetch('/api/users', { method: 'POST', body: JSON.stringify({ name, email }) });
-  if (!res.ok) throw new Error('Could not create user');
-  const dto = await res.json();
-  return dtoToUser(dto);
+    const response = await this.http.post<UserDto>(
+      '/users',
+      { name, email },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Could not create user: HTTP ${response.status}`);
+    }
+
+    return dtoToUser(response.data);
   }
 }
 ```
@@ -213,7 +260,7 @@ export class UserRepositoryFetch implements UserRepository {
 ## Key points
 
 - DTOs (external) in `infrastructure/api/dto`. Internal use case inputs in `application/commands`.
-- Port in `domain/repositories`. Adapter in `infrastructure/repositories`.
+- Port in `domain/repositories`. Adapter in `infrastructure/http/BrowserHttp/repositories` (or another concrete implementation folder).
 - The use case keeps stable dependencies in the first call and runtime input in the second call.
 - The adapter can stay class-based in `infrastructure` without changing the functional shape of the use case.
 - An outer route or framework entrypoint imports from `modules/users/setup`; UI receives the composed handler by injection.

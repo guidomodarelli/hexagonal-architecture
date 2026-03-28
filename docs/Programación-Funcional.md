@@ -85,28 +85,67 @@ Eso mantiene el núcleo funcional sin obligarte a modelar toda la infraestructur
 
 En `infrastructure`, las clases suelen ser una buena opción para adapters concretos porque encapsulan mejor:
 
-- Clientes de terceros (`fetch`, SDKs, `Pool`, `Producer`, etc.)
+- Clientes técnicos concretos (HTTP, SDKs, `Pool`, `Producer`, etc.)
 - Configuración técnica (`baseUrl`, headers, credenciales, timeouts)
 - Estado técnico o wiring propio del adaptador
 
 ```typescript
-export class CourseRepositoryFetch implements CourseRepository {
-  constructor(
-    private readonly http: typeof fetch,
-    private readonly baseUrl: string
-  ) {}
+type HttpRequestConfig = {
+  headers?: Record<string, string>;
+  timeoutMs?: number;
+};
+
+type HttpResponse<T> = {
+  status: number;
+  data: T;
+};
+
+class HttpError extends Error {}
+
+class HttpServerError extends HttpError {
+  constructor(readonly status: number) {
+    super(`HTTP ${status}`);
+  }
+}
+
+class CourseRepositorySaveError extends Error {
+  constructor(readonly cause: unknown) {
+    super('Failed to save course');
+  }
+}
+
+interface HttpClient {
+  // Resolves with { status, data } for any HTTP response, including 4xx/5xx.
+  // Rejects only for transport-level failures such as network loss, timeout, or abort.
+  post<TResponse>(
+    url: string,
+    body?: unknown,
+    config?: HttpRequestConfig
+  ): Promise<HttpResponse<TResponse>>;
+}
+
+export class CourseRepositoryHttp implements CourseRepository {
+  constructor(private readonly http: HttpClient) {}
 
   async save(course: Course): Promise<void> {
-    const response = await this.http(`${this.baseUrl}/courses`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(course),
-    });
+    let response: HttpResponse<void>;
 
-    if (!response.ok) {
-      throw new Error(`Failed to save course: ${response.status}`);
+    try {
+      response = await this.http.post<void>('/courses', course, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (error) {
+      throw new CourseRepositorySaveError(error);
+    }
+
+    if (response.status >= 500) {
+      throw new CourseRepositorySaveError(new HttpServerError(response.status));
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new CourseRepositorySaveError(new HttpError(`HTTP ${response.status}`));
     }
   }
 }
@@ -115,7 +154,10 @@ export class CourseRepositoryFetch implements CourseRepository {
 Luego el `setup.ts` hace la composición:
 
 ```typescript
-const courseRepository = new CourseRepositoryFetch(fetch, '/api');
+import { createBrowserHttpClient } from '@/modules/courses/infrastructure/http/BrowserHttp/createBrowserHttpClient';
+
+const httpClient = createBrowserHttpClient('/api');
+const courseRepository = new CourseRepositoryHttp(httpClient);
 
 export const makeCreateCourseHandler = () =>
   CreateCourse({
